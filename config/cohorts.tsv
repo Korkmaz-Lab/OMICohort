@@ -1,0 +1,54 @@
+cohort	cancer_type	platform	role	stratify_by	endpoints	network_dir
+TCGA_BRCA	breast	rnaseq	discovery,network	pam50	OS,DFS,DSS	tcga
+SCANB	breast	rnaseq	validation,network	pam50	OS	scanb
+METABRIC	breast	microarray	validation	pam50	OS,DFS	
+TCGA_OV	ovarian	rnaseq	discovery,network	none	OS,DFS,DSS	tcga_ov
+GSE26712	ovarian	microarray	validation	none	OS	
+EMTAB386	ovarian	microarray	validation	none	OS	
+GSE9891	ovarian	microarray	validation	none	OS	
+GSE51088	ovarian	microarray	validation	none	OS	
+GSE13876	ovarian	microarray	validation	none	OS	
+GSE32062	ovarian	microarray	validation	none	OS	
+GSE26193	ovarian	microarray	validation	none	OS	
+GSE18520	ovarian	microarray	validation	none	OS	
+GSE49997	ovarian	microarray	validation	none	OS	
+PMID17290060	ovarian	microarray	validation	none	OS	
+GSE17260	ovarian	microarray	validation	none	OS	
+GSE30161	ovarian	microarray	validation	none	OS	
+TCGA_LUAD	luad	rnaseq	discovery,network	none	OS,DFS,DSS	tcga_luad
+TCGA_LUSC	lusc	rnaseq	discovery,network	none	OS,DFS,DSS	tcga_lusc
+GSE68465_LUAD	luad	microarray	validation	none	OS,DFS	
+GSE37745_LUAD	luad	microarray	validation	none	OS,DFS	
+GSE50081_LUAD	luad	microarray	validation	none	OS,DFS	
+GSE30219_LUAD	luad	microarray	validation	none	OS,DFS	
+GSE3141_LUAD	luad	microarray	validation	none	OS	
+GSE31210_LUAD	luad	microarray	validation	none	OS,DFS	
+GSE19188_LUAD	luad	microarray	validation	none	OS	
+GSE8894_LUAD	luad	microarray	validation	none	DFS	
+GSE157011_LUSC	lusc	microarray	validation	none	OS	
+GSE37745_LUSC	lusc	microarray	validation	none	OS	
+GSE30219_LUSC	lusc	microarray	validation	none	OS,DFS	
+GSE3141_LUSC	lusc	microarray	validation	none	OS	
+GSE8894_LUSC	lusc	microarray	validation	none	DFS	
+TCGA_COAD	coad	rnaseq	discovery,network	none	OS,DFS,DSS	tcga_coad
+GSE39582	coad	microarray	validation	none	OS,DFS	
+GSE14333	coad	microarray	validation	none	DFS	
+GSE37892	coad	microarray	validation	none	DFS	
+GSE17538	coad	microarray	validation	none	OS	
+TCGA_GBM	gbm	rnaseq	discovery,network	none	OS,DFS,DSS	tcga_gbm
+GSE13041_GPL96_GBM	gbm	microarray	validation	none	OS	
+GSE7696_GBM	gbm	microarray	validation	none	OS	
+GSE4271_GPL96_GBM	gbm	microarray	validation	none	OS	
+GSE13041_GPL8300_GBM	gbm	microarray	validation	none	OS	
+GSE4412_GPL96_GBM	gbm	microarray	validation	none	OS	
+GSE43378_GBM	gbm	microarray	validation	none	OS	
+GSE13041_GPL570_GBM	gbm	microarray	validation	none	OS	
+GSE107850_LGG	lgg	microarray	validation	idh	DFS	
+GSE43107_LGG	lgg	microarray	validation	idh	OS	
+TCGA_LGG	lgg	rnaseq	discovery,network	idh	OS,DFS,DSS	tcga_lgg
+CGGA_693_GBM	gbm	rnaseq	validation	none	OS	
+CGGA_693_LGG	lgg	rnaseq	validation	idh	OS	
+CGGA_325_GBM	gbm	rnaseq	validation	none	OS	
+CGGA_325_LGG	lgg	rnaseq	validation	idh	OS	
+CGGA_ARRAY301_GBM	gbm	microarray	validation	none	OS	
+CGGA_ARRAY301_LGG	lgg	microarray	validation	idh	OS	

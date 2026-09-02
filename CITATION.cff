@@ -1,0 +1,63 @@
+# How to cite OMICohort. Read by GitHub's "Cite this repository" button and by
+# citation managers, so the fields here are the ones a reader will actually get
+# handed -- they have to agree with the About tab, which R/about.R renders from
+# ABOUT_PEOPLE / ABOUT_LICENSE. tests/test_release_files.R holds the two equal.
+#
+# `preferred-citation` is deliberately absent: there is no paper yet, and a CFF
+# that points at one would be a citation to something that does not exist. When
+# there is one, fill ABOUT_CITATION$doi in R/about.R FIRST -- the About page and
+# this file both derive from that decision, and the test will demand this file
+# catch up rather than let the two drift.
+cff-version: 1.2.0
+message: "If you use OMICohort, please cite it using these metadata."
+title: "OMICohort"
+abstract: >-
+  A survival-analysis tool for asking whether a molecular score predicts outcome
+  across 53 patient cohorts in 7 cancer types. Each cohort is fitted on its own
+  with a continuous per-standard-deviation Cox model and the results are combined
+  by random-effects meta-analysis, never merged into a single pool. The score
+  queried need not be a gene's expression: regulon activity inferred from an
+  ARACNe network is a first-class query, which lets a transcription factor be
+  assessed by whether its regulatory programme is switched on rather than by its
+  own mRNA level.
+type: software
+license: GPL-3.0-or-later
+repository-code: "https://github.com/Korkmaz-Lab/OMICohort"
+version: "0.1.0"
+date-released: "2026-09-01"
+keywords:
+  - survival analysis
+  - meta-analysis
+  - transcription factor
+  - regulon
+  - VIPER
+  - ARACNe
+  - cancer genomics
+authors:
+  - given-names: "Arda Burak"
+    family-names: "Karagöz"
+    affiliation: "Korkmaz Lab, Koç University"
+    email: "ardaveritas@gmail.com"
+  - given-names: "Gözde"
+    family-names: "Korkmaz"
+    affiliation: "Korkmaz Lab, Koç University"
+
+# Reference data whose licences make attribution a CONDITION rather than a
+# courtesy. These are the non-cohort inputs; the patient cohorts are credited on
+# the About tab, where each one's own terms are stated next to it.
+references:
+  - type: database
+    title: "DepMap Public 26Q1"
+    abstract: "Source of the common-essential annotation shown beside a queried gene."
+    authors:
+      - name: "Broad Institute Cancer Dependency Map"
+    year: 2026
+    license: CC-BY-4.0
+    url: "https://depmap.org/portal/"
+  - type: database
+    title: "TCGA RPPA, Broad GDAC Firehose run stddata__2016_01_28"
+    abstract: "Reverse-phase protein array measurements behind the Protein (RPPA) tab."
+    authors:
+      - name: "Broad Institute TCGA Genome Data Analysis Center"
+    year: 2016
+    doi: "10.7908/C11G0KM9"

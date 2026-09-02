@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# What GitHub gets: exactly the tree the container image is built from, plus
+# the files a repository needs to be publishable. Nothing else.
+#
+# WHITELIST, not blacklist -- `*` first, then re-include. The working tree is
+# ~19 GB and grows a directory every few weeks; a blacklist has to be edited
+# each time and its failure mode is silent, which is how 1.2 MB of build log,
+# 119 files of packaged mirror, and 68 files hard-coding a home directory path
+# reached a public repository in the first place.
+#
+# Git will not re-include a file whose PARENT DIRECTORY is still excluded, so
+# each directory is re-included before its contents are filtered. Verify with
+# `git ls-files` after any edit here: 27 files, and no tracked file quoting an
+# absolute home-directory path.
+#
+# Everything excluded here still exists on disk. This file changes what is
+# PUBLISHED, never what is kept.
+# ---------------------------------------------------------------------------
+
+*
+
+# ---- publication surface ----
+!.gitignore
+!.dockerignore
+!Dockerfile
+!LICENSE
+!CITATION.cff
+!.github/
+!.github/README.md
+
+# ---- the app ----
+!.Rprofile
+!app.R
+
+# ---- the analysis engine: the 12 files app.R actually sources ----
+# The other 23 files in R/ are CLI pipeline drivers that built the data. They
+# are not in the app's source() closure, 10 of them hard-code an absolute home
+# directory, and none of them can run without the >10 GB raw tree. Kept on
+# disk, not published.
+!R/
+R/*
+!R/about.R
+!R/brand.R
+!R/cptac.R
+!R/data_access.R
+!R/depmap.R
+!R/guide.R
+!R/plots.R
+!R/registry.R
+!R/rppa.R
+!R/scan_lookup.R
+!R/survival_engine.R
+!R/tumor_normal.R
+
+# ---- the cohort registry: the single source of truth for what exists ----
+!config/
+!config/*
+# ...but not the pre-edit copy sitting beside it. It is a snapshot of the registry
+# from before the colon panel was added; publishing it would put two registries in
+# the tree with no statement of which one is current.
+config/*.bak_*
+
+# ---- branding assets the About page and the favicon render ----
+!www/
+!www/*
+
+# ---- the one script the image runs ----
+# scripts/ holds 72 files, 45 of which hard-code an absolute home directory.
+# Only the build's self-check belongs in a published tree.
+!scripts/
+scripts/*
+!scripts/docker_selfcheck.R

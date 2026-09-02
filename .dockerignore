@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# Build context whitelist for the OMICohort image.
+#
+# EXCLUDE EVERYTHING, then re-include only what the running app opens. The
+# working tree is ~19 GB and the app needs ~1.76 GB of it; the rest is pipeline
+# input (data/raw/tcga_* alone is 14 GB), download caches, prior-state archives
+# and backups. A blacklist would have to be updated every time the tree grows a
+# directory, and the failure mode is silent: the image just gets bigger.
+#
+# THIS FILE IS NOT TRUSTED ON ITS OWN. Docker's re-include rules are subtle
+# enough that a wrong pattern here would drop a file the app needs and the
+# image would still build. `scripts/docker_selfcheck.R` runs inside the build
+# and fails it by name if anything required is missing -- see the Dockerfile.
+# ---------------------------------------------------------------------------
+
+*
+**/.DS_Store
+**/.Rhistory
+
+# ---- code, configuration, assets ----
+# R/ is listed FILE BY FILE, matching .gitignore exactly. The other 23 files in R/ are CLI
+# pipeline drivers outside app.R's source() closure; 10 of them hard-code an absolute home
+# directory. Copying them in would put those paths inside a published image, and -- the
+# reason this is worth the twelve lines -- would make an image built HERE differ from one
+# built from a clone, which is the property `docker build` is supposed to guarantee.
+!.Rprofile
+!app.R
+!R
+R/*
+!R/about.R
+!R/brand.R
+!R/cptac.R
+!R/data_access.R
+!R/depmap.R
+!R/guide.R
+!R/plots.R
+!R/registry.R
+!R/rppa.R
+!R/scan_lookup.R
+!R/survival_engine.R
+!R/tumor_normal.R
+!config
+config/*.bak_*
+!www
+!scripts/docker_selfcheck.R
+
+# ---- feature matrices, clinical database, RPPA tables ----
+# Everything the app can open lives at the top level of data/processed as
+# <kind>_<cohort>.h5 (kind = expr | viper | immune | cna | rppa | tnfc) plus
+# clinical.db and the two rppa_*.tsv sidecars. The subdirectories are frozen
+# prior states and the .bak/.guardbak files are pre-edit copies: 81 MB of
+# things the app never reads.
+!data
+data/**
+!data/processed/*
+data/processed/archive_pre_*
+data/processed/viper_tcga_only_backup
+data/processed/*.bak
+data/processed/*.bak_*
+data/processed/*.pre_*
+data/processed/*.guardbak
+
+# ---- the two raw inputs that ARE runtime reads ----
+# depmap: the common-essential flag (R/depmap.R). cptac: protein detectability
+# (R/cptac.R). Every other data/raw/* subtree is pipeline input only.
+!data/raw/depmap
+!data/raw/depmap/**
+!data/raw/cptac
+!data/raw/cptac/**
+
+# ---- ARACNe regulons ----
+# The Guide states "8 tissue-specific networks" and reads the .rds files to say
+# it (R/guide.R), and the candidate-regulator range comes from tf_list_*.txt.
+# Shipping without them renders "0 networks" -- guide.R stops loudly instead,
+# which is why these are here and the other 1.55 GB of networks/ is not.
+!networks
+networks/**
+!networks/*/regulon_*.rds
+!networks/*/tf_list_*.txt
+
+# ---- scan tables ----
+# app.R's .load_scans() globs results/<cancer_type>/*.csv, top level only. The
+# plots/ subdirectories are paper figures and network_concordance/ holds
+# validation .rds files; neither is ever read by the app.
+!results
+results/**
+!results/*/*.csv
+results/*/archive_*
