@@ -2100,14 +2100,14 @@ cna_mediation_note <- function(r) {
 # goes through .html_escape() for that reason, including ones that "cannot" contain a
 # bracket today.
 #
-# An EMPTY value is drawn as an em dash rather than left blank. Blank is what `I2` is at k=1
+# An EMPTY value is drawn as "n/a" rather than left blank. Blank is what `I2` is at k=1
 # and what every field of a gene that produced no fit is, and a label followed by nothing
 # reads as a panel that failed to fill rather than as a quantity that does not exist. The
 # field is never dropped for being empty: a missing row is the silent loss this whole file
 # is arranged against.
 .mgene_kv <- function(label, value) {
   v <- if (length(value) != 1 || is.na(value) || !nzchar(as.character(value)))
-    "&mdash;" else .html_escape(value)
+    "n/a" else .html_escape(value)
   sprintf('<span class="mg-kv"><b>%s</b> %s</span>', .html_escape(label), v)
 }
 

@@ -70,10 +70,12 @@ ABOUT_FAMILY_ORDER <- c("TCGA", "METABRIC", "SCAN-B", "CGGA", "curatedOvarianDat
 # reader cannot obtain a source that scripts/ downloads without credentials. If a source has
 # a genuinely restricted tier, say which tier and say that it is unused -- do not open the
 # entry with the restriction, because the entry is read as being about the data served here.
-# NOTE: these strings are rendered through .g_esc(), which escapes `&`. An HTML entity
-# written here would reach the page as literal "&mdash;" text, so the em-dashes below are
-# real characters. The Guide's prose is the opposite case: it is assembled as raw HTML and
-# uses entities. Same document, two rules, because one half is escaped and the other is not.
+# NOTE: these strings are rendered through .g_esc(), which escapes `&`. An HTML entity written
+# here would reach the page as the literal text "&mdash;", so anything typographic in this list
+# has to be a real character. Since step 133 the question is settled a third way: em dashes, en
+# dashes and double hyphens are not used in anything a reader sees, in either half of this file,
+# so use a colon, a comma or a new sentence. tests/test_about_derived.R checks the RENDERED page
+# rather than this source, which catches the entity form and the literal form at once.
 ABOUT_TERMS <- list(
   "TCGA" = paste(
     "The Cancer Genome Atlas, distributed by the NCI Genomic Data Commons. The expression and",
@@ -130,6 +132,17 @@ ABOUT_TERMS <- list(
 # names above have no such second source and are untouched.
 ABOUT_PEOPLE <- list(
   lab         = "Korkmaz Lab",
+  # THE RESEARCH CENTRE, added 2026-09-03 at the user's request. Its own field rather than
+  # being folded into `institution`, for the reason the mark below gives: each of the three
+  # identities on this page has its own mark, and each is checked against its own mark. Fold
+  # two names into one string and the check on the pair becomes a check on a sentence.
+  #
+  # NOT EXPANDED IN THE PROSE, and that is a decision. KUTTAM stands for the Koç University
+  # Research Center for Translational Medicine, and www/kuttam-1.png prints exactly that under
+  # the wordmark, on the same row of the same section. Writing it out again in the sentence
+  # above would be the page saying the same thing twice within one screen. The expansion is in
+  # the mark's `alt` instead, which is where a reader who cannot see the image will find it.
+  center      = "KUTTAM",
   institution = "Koç University",
   # Supplied by the user on 2026-08-30. NAMED vector: the name is the visible link text and
   # the value is the href, and tests/test_about_derived.R asserts the page renders exactly
@@ -145,6 +158,16 @@ ABOUT_PEOPLE <- list(
   )
 )
 
+# The one place the three identities are joined into a single line. CITATION.cff quotes it as
+# each author's affiliation, the Zenodo creator records take it as theirs, and the People
+# paragraph renders it: three consumers, one derivation, so a fourth name can never be added to
+# the page and forgotten in the deposit. tests/test_release_files.R asserts the CFF still
+# carries what this returns.
+about_affiliation <- function(p = ABOUT_PEOPLE) {
+  parts <- c(p$lab, p$center, p$institution)
+  paste(parts[!vapply(parts, is.null, logical(1)) & nzchar(unlist(parts))], collapse = ", ")
+}
+
 # The institutional marks, supplied by the user on 2026-08-30 and shown in the People section
 # beside the lab and university they identify. UNLIKE the three brand images, these are not
 # generated: scripts/make_logo.py builds www/logo.png, favicon.png and logo_full.png and the
@@ -156,18 +179,35 @@ ABOUT_PEOPLE <- list(
 # www/ instead of typed: the lab file is `korkmazlab.jpg`, and it was described in the message
 # that supplied it as `korkmaz_lab.jpg`. Only one of those two spellings is on the disk.
 #
-# `height` is per-image on purpose. The two marks have very different aspect ratios -- the lab
-# mark is square, the university's is a wide lockup roughly 4.7:1 -- so a single shared height
-# would render one of them at several times the visual weight of the other. These values were
-# set by looking at the rendered row, not computed.
+# `height` is per-image on purpose. The three marks have very different aspect ratios: the lab
+# mark is square, the university's is a wide lockup roughly 4.7:1, KUTTAM's is 1.75:1. A single
+# shared height would render one of them at several times the visual weight of another.
+#
+# KUTTAM's 104 is the one value that was MEASURED rather than eyeballed, and it had to be. Its
+# file is 350x200 but the artwork occupies only 55% of that height, the rest is white margin, so
+# the obvious "about half the lab mark" reading of the number renders a mark half the size it
+# looks like it should be: at 46 the artwork came out 25px tall against the university's 52 and
+# the lab's 92, and the centre's name was unreadable. 104 puts its ink at 57px, between the
+# other two, which is what the row was checked against on screen after the number changed.
 #
 # NOT SETTLED HERE: the Koc University mark is an institutional trademark, and universities
 # normally publish rules for it (clear space, which colour variant, whether an external site
 # may host it at all). Using it on a tool built in one of its own labs is the ordinary case,
 # but that is a question for the institution and not one this file can answer.
+#
+# `role` IS NOT DECORATION. tests/test_about_derived.R checks that the institution's name in
+# the prose and the institution's own mark agree on the spelling, and until step 134 it found
+# that mark by looking for "University" in the alt text. Adding a third mark whose alt reads
+# "KUTTAM, Koç University Research Center for Translational Medicine" would have matched that
+# search twice, and the check is written to run only on a unique match: it would have gone
+# SILENT, on the commit that added the logo, with nothing failing. So the marks now say what
+# they are and the test selects on that, asserting exactly one of each declared role.
 ABOUT_LOGOS <- list(
-  list(file = "korkmazlab.jpg",  alt = "Korkmaz Lab",       height = 120L),
-  list(file = "logo-renkli.png", alt = "Koç Üniversitesi", height = 52L))
+  list(file = "korkmazlab.jpg",  alt = "Korkmaz Lab", role = "lab",         height = 120L),
+  list(file = "kuttam-1.png",
+       alt = "KUTTAM, Koç University Research Center for Translational Medicine",
+       role = "center", height = 104L),
+  list(file = "logo-renkli.png", alt = "Koç Üniversitesi", role = "institution", height = 52L))
 
 # The order the page's own <h3> sections appear in, DECLARED so that it can be asserted. The
 # arrangement is a decision -- citation first, then the people, then the terms, with the two
@@ -223,8 +263,8 @@ about_facts <- function(registry = COHORTS) {
 .about_people <- function(p) {
   if (!length(p$members) && !nzchar(p$contact) && !length(p$links))
     return(paste0('<p>Built in the <b>', .g_esc(p$lab), '</b>. ',
-                  'Contributors, affiliations and a contact address are not listed here yet ',
-                  '&mdash; they are declared in <code>R/about.R</code> and this section fills ',
+                  'Contributors, affiliations and a contact address are not listed here yet: ',
+                  'they are declared in <code>R/about.R</code> and this section fills ',
                   'itself in from that one place.</p>'))
   mem <- if (length(p$members))
     paste0('<ul class="guide-list">', paste(vapply(p$members, function(m)
@@ -240,8 +280,12 @@ about_facts <- function(registry = COHORTS) {
   # The institution is rendered only if declared -- same rule as every other field here. It is
   # the one identity with no second source in the repository to check it against: `lab` is
   # cross-checked against the wordmark in scripts/make_logo.py, this came from the user.
-  at <- if (!is.null(p$institution) && nzchar(p$institution))
-    paste0(', ', .g_esc(p$institution)) else ''
+  # The centre and the institution each render only if declared, same rule as every other field
+  # here, and in that order: lab inside centre inside university, which is also the order of the
+  # marks below them.
+  at <- paste0(vapply(c("center", "institution"), function(k)
+    if (!is.null(p[[k]]) && nzchar(p[[k]])) paste0(', ', .g_esc(p[[k]])) else '',
+    character(1)), collapse = "")
   paste0('<p>Built in the <b>', .g_esc(p$lab), '</b>', at, '.</p>', mem, lnk, con)
 }
 
@@ -348,15 +392,15 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 '<h4 class="guide-h3">Reference data</h4>',
 '<p>Two of the inputs behind these pages are <b>not patient cohorts</b>. They describe genes ',
 'and proteins rather than people, they carry no survival information, and no hazard ratio is ',
-'computed from them &mdash; they only annotate a gene you have already asked about. Each is ',
+'computed from them: they only annotate a gene you have already asked about. Each is ',
 'listed here because each asks to be cited in its own right.</p>',
 '<ul class="guide-list">',
-'<li><b>', .g_esc(DEPMAP_RELEASE), '</b> &mdash; the source of the <i>common essential</i> ',
+'<li><b>', .g_esc(DEPMAP_RELEASE), '</b>: the source of the <i>common essential</i> ',
 'note that can appear beside a gene, which means knocking that gene out stops growth in ',
 'nearly every cancer cell line screened. It is a property of cell lines in a dish, not of ',
 'the patients above. Released under ', .g_esc(DEPMAP_LICENCE), ', which asks that you credit ',
 'it wherever the note carries into your own work. Cite: ', .g_esc(DEPMAP_CITATION), '</li>',
-'<li><b>TCGA RPPA, Broad GDAC Firehose run stddata__2016_01_28</b> &mdash; the protein and ',
+'<li><b>TCGA RPPA, Broad GDAC Firehose run stddata__2016_01_28</b>: the protein and ',
 'phospho-protein measurements behind the Protein (RPPA) tab. The patients are the TCGA ',
 'cohorts credited above; this is the analysis-ready release those measurements were taken ',
 'from, and it asks to be cited alongside them. Cite: Broad Institute TCGA Genome Data ',

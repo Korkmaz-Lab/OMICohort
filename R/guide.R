@@ -169,7 +169,7 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
 
 # ---- 2. the page --------------------------------------------------------------------
 
-.g_int <- function(x) if (is.na(x)) "&mdash;" else formatC(as.integer(x), format = "d", big.mark = ",")
+.g_int <- function(x) if (is.na(x)) "n/a" else formatC(as.integer(x), format = "d", big.mark = ",")
 .g_esc <- function(x) .html_escape(x)
 .g_join <- function(x) paste(.g_esc(x), collapse = ", ")
 
@@ -178,11 +178,11 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
     paste0("<tr><td><b>%s</b></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>",
            "<td>%s</td><td>%s / %s</td><td>%s</td><td>%s</td></tr>"),
     .g_esc(t$label), .g_int(t$n_cohorts),
-    if (length(t$scanned_eps)) .g_join(t$scanned_eps) else "&mdash;", .g_esc(t$primary),
-    if (length(t$strata)) paste0("<code>", .g_join(t$strata), "</code>") else "&mdash;",
+    if (length(t$scanned_eps)) .g_join(t$scanned_eps) else "none", .g_esc(t$primary),
+    if (length(t$strata)) paste0("<code>", .g_join(t$strata), "</code>") else "none",
     if (is.na(t$horizon)) "full" else paste0(.g_int(t$horizon), " mo"),
     .g_int(t$k), .g_int(t$n),
-    .g_int(t$n_fdr), if (is.na(t$replicated)) "&mdash;" else
+    .g_int(t$n_fdr), if (is.na(t$replicated)) "n/a" else
       sprintf("%s of %s", .g_int(t$replicated), .g_int(t$discovered))), character(1))
 
   paste0(
@@ -195,11 +195,11 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
     '<p class="guide-fine">Every figure in this table is read from <code>config/cohorts.tsv</code> ',
     'and the scan files in <code>results/</code> when the app starts. None of it is typed into ',
     'this page, so it cannot disagree with the analysis it describes. "Clear FDR" counts ',
-    'regulators at Benjamini&ndash;Hochberg q &lt; ', format(GUIDE_FDR),
+    'regulators at Benjamini-Hochberg q &lt; ', format(GUIDE_FDR),
     ' in that tissue&rsquo;s primary-endpoint scan ',
-    '&mdash; the STRATIFIED one wherever a stratifier is declared, since that is the estimand ',
+    ': the STRATIFIED one wherever a stratifier is declared, since that is the estimand ',
     'the app reports; ',
-    '"Endpoints scanned" is what exists on disk, not what the registry declares &mdash; two ',
+    '"Endpoints scanned" is what exists on disk, not what the registry declares: two ',
     'tissues register a third endpoint that never reaches the minimum pool size and so is ',
     'never scanned; ',
     '"Replicated" is the independent-validation half of the discovery split, and the zeros are ',
@@ -248,7 +248,7 @@ guide_html <- function(f) {
 ' The candidate regulators are the <i>same list</i> for every tissue: the human transcription ',
 'factors of the <a href="https://humantfs.ccbr.utoronto.ca/">Human Transcription Factors</a> ',
 'database (v1.01; Lambert <i>et al.</i>, <i>Cell</i> 2018), intersected per network with the ',
-'genes that survive expression filtering, which leaves <b>', .g_int(f$n_reg_min), '&ndash;',
+'genes that survive expression filtering, which leaves <b>', .g_int(f$n_reg_min), ' to ',
 .g_int(f$n_reg_max), '</b> regulators per network. Sharing the list is what makes a TF ',
 'comparable across tissues: the regulons differ because the tissue does, not because the ',
 'candidate set did.',
@@ -287,10 +287,10 @@ guide_html <- function(f) {
 'cohort. HR&nbsp;=&nbsp;1.25 means: patients one SD higher on this score have 25% higher ',
 'instantaneous risk of the event at any given moment, compared with otherwise-similar patients.</p>',
 '<ul class="guide-list">',
-'<li><b>HR &gt; 1</b> &mdash; higher score, worse outcome. <b>HR &lt; 1</b> &mdash; protective.</li>',
+'<li><b>HR &gt; 1</b>: higher score, worse outcome. <b>HR &lt; 1</b>: protective.</li>',
 '<li>It is <b>not</b> a fold change, and not "25% more patients died". It is a rate ratio.</li>',
-'<li><b>Read the confidence interval, not the point estimate.</b> HR 1.9 [0.8&ndash;2.4] and ',
-'HR 1.2 [1.15&ndash;1.25] are not "1.9 is stronger" but the first is compatible with no effect ',
+'<li><b>Read the confidence interval, not the point estimate.</b> HR 1.9 [0.8, 2.4] and ',
+'HR 1.2 [1.15, 1.25] are not "1.9 is stronger" but the first is compatible with no effect ',
 'and the second is not.</li>',
 '<li>Per-SD units are what make cohorts comparable. A raw score unit means something different ',
 'in each cohort; an SD does not.</li>',
@@ -312,7 +312,7 @@ guide_html <- function(f) {
 'wide intervals. The question is whether the effects point the same way.</li>',
 '</ul>',
 
-'<h4 class="guide-h3">The Kaplan&ndash;Meier plot</h4>',
+'<h4 class="guide-h3">The Kaplan-Meier plot</h4>',
 '<p>The KM curves split patients at the <b>median</b> of the score and show the observed survival ',
 'of the two halves. It is the most intuitive panel and the easiest to over-read, so:</p>',
 '<ul class="guide-list">',
@@ -338,7 +338,7 @@ guide_html <- function(f) {
 'rather than hidden: the forest axis names it, and the table reports how many cohorts were ',
 'actually stratified.</li>',
 '<li><b>The rank and q-value.</b> On a VIPER query the panel also reports where that TF sits in ',
-'the genome-wide scan for the same tissue and endpoint, with a Benjamini&ndash;Hochberg q. This is ',
+'the genome-wide scan for the same tissue and endpoint, with a Benjamini-Hochberg q. This is ',
 'the multiplicity context: a p of 0.01 means something different when it is one test than when it ',
 'is one of ', .g_int(f$n_tf), '. The rank is looked up from the scan on disk, and only shown when ',
 'the query&rsquo;s recipe matches the scan&rsquo;s exactly.</li>',
@@ -352,7 +352,7 @@ guide_html <- function(f) {
 'treated.</li>',
 '<li><b>Hit counts are inflated by correlation.</b> Regulon activities are strongly correlated ',
 'with one another, so "N regulators clear FDR" is not N independent findings. Where the tool ',
-'reports a replicated set, read its block structure &mdash; correlated programs travel together.</li>',
+'reports a replicated set, read its block structure: correlated programs travel together.</li>',
 '<li><b>A zero in the replicated column is usually power, not absence.</b> The split fixes which ',
 'cohorts discover and which validate, so a discovery arm with few events finds little regardless ',
 'of what is there.</li>',
@@ -397,7 +397,7 @@ guide_html <- function(f) {
 # rather than each carrying half of both subjects.
 '<h3 class="guide-h2">How it was built</h3>',
 '<p>Tissue-specific ARACNe networks, VIPER regulon activity per patient, per-cohort Cox ',
-'models and random-effects meta-analysis &mdash; the steps above, in the order the pipeline ',
+'models and random-effects meta-analysis: the steps above, in the order the pipeline ',
 'runs them. The engine is R, with <code>survival</code> for the models, <code>metafor</code> ',
 'for the pooling, and Shiny for this interface.</p>',
 '<p>The cohort registry (<code>config/cohorts.tsv</code>) ships with the tool and is the ',
@@ -464,11 +464,11 @@ GUIDE_CSS <- local({
    rendered pages; until step 118 it read only the Guide, which was safe exactly as long as
    About used no class the Guide did not. */
 .guide-h4 { margin: 1.1rem 0 0.3rem 0; font-weight: 700; font-size: 112%; color: #444; }
-/* The institutional marks on About. Their aspect ratios differ by roughly a factor of five --
-   the lab mark is square, the university's is a wide lockup -- so the HEIGHT is declared per
+/* The institutional marks on About. Their aspect ratios differ by roughly a factor of five,
+   the lab mark is square, the university's is a wide lockup, so the HEIGHT is declared per
    image in ABOUT_LOGOS and only the row is styled here; one shared height would render one of
-   them at several times the visual weight of the other. align-items:center puts a square and
-   a wide lockup on a shared optical centre rather than a shared top edge. */
+   them at several times the visual weight of another. align-items:center puts a square and a
+   wide lockup on a shared optical centre rather than a shared top edge. */
 .guide-marks { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 2.2rem;
                margin: 1.2rem 0 0.4rem 0; }
 .guide-mark { width: auto; display: block; }
