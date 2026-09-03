@@ -71,7 +71,7 @@ repository root —
 
 | from the bundle | what it is |
 |---|---|
-| `data/processed/` | the per-cohort expression and VIPER matrices, and `clinical.db` |
+| `data/processed/` | the per-cohort matrices — expression, VIPER activity, RPPA, CNA, tumour-vs-normal and immune — and `clinical.db` |
 | `data/raw/depmap/`, `data/raw/cptac/` | the two annotation inputs read at runtime |
 | `networks/*/regulon_*.rds`, `networks/*/tf_list_*.txt` | the 8 ARACNe networks |
 | `results/*/*.csv` | the per-tissue scan tables the Multiple-query tab browses |
@@ -94,9 +94,15 @@ Rscript scripts/docker_selfcheck.R
 ## Running without Docker
 
 R 4.5.2 with nine packages — `shiny`, `DT`, `shinythemes`, `RSQLite`, `DBI`, `data.table`,
-`metafor`, `survival` (CRAN) and `rhdf5` (Bioconductor 3.22). R must be **started** in the
-project directory, because `.Rprofile` is read at startup and turns off Shiny's automatic
-sourcing of `R/`:
+`metafor`, `survival` (CRAN) and `rhdf5` (Bioconductor 3.22).
+
+**Install `R.utils` as well.** Nothing in this codebase loads it, so it does not appear in the
+list above, and it is still required: `data.table::fread()` asks for it *at call time* to read
+a `.gz`, and the CPTAC table is read during startup. Without it the app stops on launch with an
+error naming a package you never asked for. The image installs it for this reason.
+
+R must be **started** in the project directory, because `.Rprofile` is read at startup and
+turns off Shiny's automatic sourcing of `R/`:
 
 ```bash
 Rscript -e "shiny::runApp('.', port = 7654)"
@@ -112,7 +118,9 @@ Deliberately small: this is the tree the container image is built from, and noth
 | `R/` | The analysis engine — the 12 files the app loads |
 | `config/cohorts.tsv` | The cohort registry: the single source of truth for what exists |
 | `www/` | Branding assets the page renders |
+| `.Rprofile` | Read when R starts here; turns off Shiny's autoloading of `R/` and fixes the project root |
 | `Dockerfile`, `.dockerignore` | How the image is built, and what goes into it |
+| `.gitignore` | A whitelist, not a blacklist — it names what is published rather than what is not |
 | `scripts/docker_selfcheck.R` | Run inside the build; fails it by name if anything the app opens is absent |
 | `CITATION.cff`, `LICENSE` | How to cite this, and the terms |
 
