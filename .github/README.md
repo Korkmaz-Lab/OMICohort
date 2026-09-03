@@ -117,7 +117,7 @@ The image carries the code **and** the roughly 1.76 GB of data it serves from, s
 nothing to download separately and nothing to configure.
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.0
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.1
 ```
 
 Then open **http://localhost:7654**. The same command works on Intel, AMD and Apple Silicon

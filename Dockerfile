@@ -11,9 +11,9 @@
 # whatever matrices it finds. Baking makes `docker run` reproduce one published state.
 #
 # BUILD (from the project root, with the data tree present):
-#   docker build -t omicohort:0.1.0 .
+#   docker build -t omicohort:0.1.1 .
 # RUN:
-#   docker run --rm -p 7654:7654 omicohort:0.1.0     ->  http://localhost:7654
+#   docker run --rm -p 7654:7654 omicohort:0.1.1     ->  http://localhost:7654
 
 # R is pinned to the version this project is developed and tested on. rocker/r-ver
 # additionally pins a CRAN snapshot, which is what makes a rebuild in six months install

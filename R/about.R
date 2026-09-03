@@ -216,6 +216,25 @@ ABOUT_LOGOS <- list(
 # People back under the licence would read as a formatting change.
 ABOUT_SECTIONS <- c("How to cite", "People", "Licence and data terms")
 
+# THE RELEASE VERSION, DECLARED ONCE (step 135). It was written out in five places before
+# this: CITATION.cff, pkg/OMICohort/DESCRIPTION, the `docker run` line on the public README,
+# and twice in the Dockerfile header. Nothing held them equal, so the first release after a
+# text change would have shipped an image tagged one thing while the citation metadata said
+# another, and the only way to find out is for somebody to pull the tag the README names and
+# get a 404. Section 12 of tests/test_release_files.R now holds every one of them to this
+# string.
+#
+# WHAT IT IS AND IS NOT. This is the version of the SOFTWARE and of the image built from it.
+# It is deliberately NOT the version of the data deposit, which has its own line in
+# scripts/make_zenodo_bundle.R and its own DOI: that is the whole point of depositing the two
+# separately. A wording fix on the About page is a new image and is not a new dataset.
+#
+# BUMPING IT: patch for text, packaging and fixes that leave every number the app reports
+# unchanged; minor when the app gains or loses a capability; and if a released estimate ever
+# MOVES, that is not a version bump on its own, it is a BUILD_LOG entry saying which anchors
+# moved and why, with the version following from that.
+ABOUT_VERSION <- "0.1.1"
+
 # No paper yet (confirmed 2026-08-30). While `doi` is empty the page renders the "not yet
 # published" form; filling `doi` in switches it to a formal citation block and nothing else
 # has to change.
