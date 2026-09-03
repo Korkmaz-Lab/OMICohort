@@ -48,6 +48,12 @@ docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.0
 
 Then open **http://localhost:7654**.
 
+That tag is a multi-architecture manifest covering **`linux/amd64` and `linux/arm64`**, so the
+same command pulls the right image on an Intel or AMD server and on an Apple Silicon Mac —
+there is no `--platform` flag to get right. The two are not merely both built: the survival
+fits, the pooled estimates and the rendered figures were compared across them and are
+identical, byte for byte.
+
 To serve on a different port, set `PORT` and map it to match:
 
 ```bash
