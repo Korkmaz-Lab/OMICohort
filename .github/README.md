@@ -28,7 +28,7 @@ Docker must be installed and running on your machine.
 
 
 The image contains the application **and** its 1.76 GB dataset, requiring no additional downloads or configuration. 
-It operates unprivileged, requires no network access after startup, and supports Intel, AMD, and Apple Silicon and the tag covers both architectures
+It operates unprivileged, requires no network access after startup, and provides multi-architecture support (amd64 and arm64).
 
 Execute the following command in your terminal:
 
