@@ -24,19 +24,19 @@ It is a survival analysis tool for cancer genomics, built in the Korkmaz Lab at 
 University.
 
 ## How to run it
+Docker must be installed and running on your machine.
 
-The image carries the code **and** the roughly 1.76 GB of data it serves from, so there is
-nothing to download separately and nothing to configure. Just run the command below in terminal/console.
+
+The image contains the application **and** its 1.76 GB dataset, requiring no additional downloads or configuration. 
+It operates unprivileged, requires no network access after startup, and supports Intel, AMD, and Apple Silicon and the tag covers both architectures
+
+Execute the following command in your terminal:
 
 ```bash
 docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.2
 ```
 
-Then open **http://localhost:7654** in your browser. The same command works on Intel, AMD and Apple Silicon
-machines and the tag covers both architectures
-
-The container runs unprivileged, needs no network access once it has started, and writes
-nothing outside its own temporary directory.
+Once started, navigate to http://localhost:7654 in your web browser.
 
 ## The problem it is built around
 
