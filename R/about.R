@@ -76,34 +76,74 @@ ABOUT_FAMILY_ORDER <- c("TCGA", "METABRIC", "SCAN-B", "CGGA", "curatedOvarianDat
 # dashes and double hyphens are not used in anything a reader sees, in either half of this file,
 # so use a colon, a comma or a new sentence. tests/test_about_derived.R checks the RENDERED page
 # rather than this source, which catches the entity form and the literal form at once.
+# THREE QUESTIONS, in this order, for every entry. Added 2026-09-04 (step 141). Until then
+# only METABRIC's entry answered all three, and only because it had been wrong once and was
+# rewritten under scrutiny in step 120; the other five said what a source was and who to cite
+# and stopped there. A visitor deciding whether they can build on a cohort needs:
+#
+#   1. what it is,
+#   2. HOW THEY CAN GET IT THEMSELVES -- not how this repository got it. Section 8 of
+#      tests/test_about_derived.R exists because step 120's corrected text told visitors
+#      which shell script fetched the file, which is true, maintainer-facing, and useless to
+#      a researcher with a browser. "Anyone can download it from X without an account" is the
+#      same fact told to the person actually reading,
+#   3. WHAT THE LICENCE LETS THEM DO. This is the half that was missing everywhere. A page
+#      that says "cite this" answers an obligation and leaves the permission unstated, and a
+#      reader who wants to reuse a cohort then has to go and find out what we already knew.
+#
+# SAY IT POSITIVELY, always. Section 7 reads these strings for phrases asserting the reader
+# cannot obtain a source, and section 7b reads the RENDERED PAGE for the same claim in prose.
+# Both exist because this block once told every visitor that METABRIC needed a data access
+# committee while a plain unauthenticated fetch was pulling it. A correction phrased as a
+# denial contains the very words those guards look for, so state what is true rather than
+# what is not: "anyone can download it" rather than "no approval is needed".
+#
+# ONLY WHAT IS VERIFIED. The Artistic-2.0 below is read off the installed package, the ODbL
+# off the distributor's own statement, and the GDC open tier off NCI's published access
+# policy. GEO is described by what its submitters ask for and NOT by a licence, because GEO
+# does not put one on a series and inventing one here would be worse than saying less.
 ABOUT_TERMS <- list(
   "TCGA" = paste(
-    "The Cancer Genome Atlas, distributed by the NCI Genomic Data Commons. The expression and",
-    "clinical data shown here are open-access. If a TCGA cohort carries a result into work you",
-    "publish, the programme asks that you acknowledge the TCGA Research Network."),
+    "The Cancer Genome Atlas, distributed by the NCI Genomic Data Commons. The expression,",
+    "copy number, protein and clinical measurements shown here all come from the open tier,",
+    "which anyone can download from the Genomic Data Commons without an account. The",
+    "individually identifying tiers, holding germline variants and SNP genotypes, sit behind a",
+    "separate authorisation and are not used here. Open TCGA data may be reused and passed on",
+    "freely. If a TCGA cohort carries a result into work you publish, the programme asks that",
+    "you acknowledge the TCGA Research Network."),
   "METABRIC" = paste(
-    "Molecular Taxonomy of Breast Cancer International Consortium. The expression and clinical",
-    "data shown here are the public release distributed by cBioPortal; METABRIC's raw",
-    "sequencing sits separately at the EGA and is not used. cBioPortal releases this dataset",
-    "under the Open Database License (ODbL), so you may reuse and redistribute it provided you",
-    "credit the source and place any dataset you derive from it under the same licence. Cite",
-    "Curtis et al., Nature 2012 and Pereira et al., Nature Communications 2016."),
+    "Molecular Taxonomy of Breast Cancer International Consortium. The expression, copy number",
+    "and clinical measurements shown here are the processed public release distributed by",
+    "cBioPortal, which anyone can download without an account. METABRIC's raw sequencing and",
+    "its SNP genotypes sit separately at the European Genome-phenome Archive and are not used",
+    "here. cBioPortal releases this dataset under the Open Database License (ODbL), so you may",
+    "reuse and pass it on provided you credit the source and place any dataset you derive from",
+    "it under the same licence. Cite Curtis et al., Nature 2012 and Pereira et al., Nature",
+    "Communications 2016."),
   "SCAN-B" = paste(
-    "Sweden Cancerome Analysis Network - Breast, a population-based cohort released through",
-    "GEO. If a SCAN-B result matters to your work, cite the SCAN-B data release itself rather",
-    "than this tool."),
+    "Sweden Cancerome Analysis Network: Breast, a population-based Swedish cohort released",
+    "through the Gene Expression Omnibus as accession GSE96058, which anyone can download from",
+    "GEO without an account. The release carries genome-wide expression and de-identified",
+    "clinical annotation, with no genotypes and no raw sequence reads. GEO leaves the terms to",
+    "the submitters, and what they ask for is credit: cite the SCAN-B data release and its",
+    "accession rather than this tool."),
   "CGGA" = paste(
-    "Chinese Glioma Genome Atlas, released through the CGGA portal. Cite CGGA when a glioma",
-    "result rests on it. The three CGGA batches appear as separate cohorts here, and are never",
-    "merged, because they were run on different platforms."),
+    "Chinese Glioma Genome Atlas, released through the CGGA portal, which serves its expression",
+    "matrices and de-identified clinical tables to anyone without an account. CGGA released its",
+    "gliomas in three batches, two sequenced and one on arrays, and they are never merged here",
+    "because pooling runs from different platforms would hide the difference: the cohorts listed",
+    "below are those batches split again by tumour type. Cite CGGA when a glioma result rests",
+    "on it."),
   "curatedOvarianData" = paste(
-    "The Bioconductor curatedOvarianData package, which brings published ovarian series",
-    "together under one clinical schema. Each series keeps its own terms and its own citation:",
-    "cite the series a result rests on, not the package alone."),
+    "The Bioconductor curatedOvarianData package, which brings published ovarian series together",
+    "under one clinical schema. The package is open source under the Artistic-2.0 licence and",
+    "installs from Bioconductor without an account, but the series inside it each keep their own",
+    "terms and their own citation: cite the series a result rests on, not the package alone."),
   "GEO series" = paste(
-    "Individual Gene Expression Omnibus series, listed by accession below. Each was assembled",
-    "and deposited by its own submitters, and the accession is how they are credited: cite it",
-    "when a result rests on that series."))
+    "Individual Gene Expression Omnibus series, listed by accession below, which anyone can",
+    "download from GEO without an account. Each was assembled and deposited by its own",
+    "submitters, who released de-identified expression and clinical annotation and ask to be",
+    "credited by accession: cite the accession when a result rests on that series."))
 
 
 # ---- 2. the people, the citation, the licence ----------------------------------------
@@ -233,7 +273,7 @@ ABOUT_SECTIONS <- c("How to cite", "People", "Licence and data terms")
 # unchanged; minor when the app gains or loses a capability; and if a released estimate ever
 # MOVES, that is not a version bump on its own, it is a BUILD_LOG entry saying which anchors
 # moved and why, with the version following from that.
-ABOUT_VERSION <- "0.1.1"
+ABOUT_VERSION <- "0.1.2"
 
 # No paper yet (confirmed 2026-08-30). While `doi` is empty the page renders the "not yet
 # published" form; filling `doi` in switches it to a formal citation block and nothing else
@@ -252,6 +292,86 @@ ABOUT_CITATION <- list(doi = "", note = "")
 ABOUT_LICENSE <- list(
   code = "GPL-3.0-or-later",
   docs = "CC BY 4.0")
+
+# ---- 2b. the software the results pass through ----------------------------------------
+# ADDED 2026-09-04 (step 144). Until this step the page credited every DATA source and no
+# SOFTWARE source, which left uncredited the two things the tool exists for: ARACNe-AP built
+# the networks, and VIPER turned them into the per-patient activity a transcription factor
+# query is actually fitted on. A page that names the cohort a hazard ratio came from but not
+# the method that produced the score has credited the material and not the instrument.
+#
+# THE SAME THREE QUESTIONS as ABOUT_TERMS, adapted: what it is, what it did HERE, and what you
+# owe it. The middle one is what a credit list usually drops. "Uses VIPER" tells a reader
+# nothing. "Turns a network and one patient's expression into the activity the Cox model is
+# fitted on" tells them which of their own results depends on it.
+#
+# NOTHING HERE IS TYPED FROM MEMORY, and that is the whole constraint on this block. Every
+# citation below is the string the package itself returns from citation(), read off the
+# installed package; section 10 of tests/test_about_derived.R reads them again and fails if a
+# declared one has drifted from what the package says. ARACNe-AP is the exception that shows
+# why the rule is needed: it is not an R package, so there is nothing on this machine to check
+# it against, and its citation is therefore declared in networks/SOURCE.txt beside the cluster
+# logs and submission scripts that are the evidence those runs happened. The DOI rule in
+# section 1 of that test accepts a DOI on this page from those two places and nowhere else.
+#
+# WHY FIVE AND NOT TWENTY. The criterion is the one the Reference data block already uses: a
+# thing is listed because it asks to be cited in its own right AND because its output is in a
+# number the visitor is looking at. Every package the pipeline ever loaded is not that list.
+# The retrieval and annotation packages are named in the closing paragraph without a formal
+# citation, because a reader does not cite the library that downloaded a file.
+ABOUT_METHODS <- list(
+  list(name = "ARACNe-AP", pkg = "",
+       role = paste("reconstructed the regulatory networks, one per tissue, by measuring",
+                    "which genes move together across the tumours of that tissue. A network",
+                    "is what makes a regulon query possible at all."),
+       cite = paste("Lachmann A, Giorgi FM, Lopez G, Califano A (2016). ARACNe-AP: gene",
+                    "network reverse engineering through adaptive partitioning inference of",
+                    "mutual information. Bioinformatics 32(14), 2233-2235.",
+                    "doi:10.1093/bioinformatics/btw216")),
+  list(name = "VIPER", pkg = "viper",
+       role = paste("turns one of those networks and one patient's expression into a single",
+                    "activity score for a transcription factor. That score, not the factor's",
+                    "own mRNA level, is what a regulon query is fitted on."),
+       cite = paste("Alvarez MJ, Shen Y, Giorgi FM, Lachmann A, Ding BB, Ye BH, Califano A",
+                    "(2016). Functional characterization of somatic mutations in cancer using",
+                    "network-based inference of protein activity. Nature Genetics 48(8),",
+                    "838-847. doi:10.1038/ng.3593")),
+  list(name = "DESeq2", pkg = "DESeq2",
+       role = paste("put the RNA sequencing cohorts on a comparable scale with its",
+                    "variance stabilising transform, before any score was computed from",
+                    "them. Every expression value shown for those cohorts passed through it."),
+       cite = paste("Love MI, Huber W, Anders S (2014). Moderated estimation of fold change",
+                    "and dispersion for RNA-seq data with DESeq2. Genome Biology 15, 550.",
+                    "doi:10.1186/s13059-014-0550-8")),
+  list(name = "survival", pkg = "survival",
+       role = paste("fits the Cox model inside each cohort, which is where every hazard ratio",
+                    "is estimated, and draws the survival curves."),
+       cite = paste("Therneau TM, Grambsch PM (2000). Modeling Survival Data: Extending the",
+                    "Cox Model. Springer, New York.")),
+  list(name = "metafor", pkg = "metafor",
+       role = paste("combines those per-cohort estimates into the pooled one, and reports how",
+                    "much they disagreed. The pooled hazard ratio and its heterogeneity both",
+                    "come from here."),
+       cite = paste("Viechtbauer W (2010). Conducting meta-analyses in R with the metafor",
+                    "package. Journal of Statistical Software 36(3), 1-48.",
+                    "doi:10.18637/jss.v036.i03")))
+
+# The packages the SERVED APPLICATION loads, declared here and asserted in section 10 against
+# scripts/docker_selfcheck.R, which is what the image build checks for before it will publish.
+# Two lists of the running stack are two lists that will disagree; this one is the page's copy
+# and the build's is authoritative, so the test compares rather than trusting either.
+#
+# `viper` is deliberately absent and its absence is a fact about the tool, not an omission
+# here: VIPER activity is precomputed into the served matrices, so the running application
+# never loads it. It is credited above because its output is what a query is fitted on, which
+# is the criterion, not whether the package is installed at the time you look.
+#
+# VERSIONS AND LICENCES ARE READ AT RENDER TIME from the packages actually installed, so the
+# page describes the instance a visitor is looking at rather than the machine it was written
+# on. That is also why nothing is typed here but the names.
+ABOUT_RUNTIME_PKGS <- c("shiny", "DT", "shinythemes", "rhdf5", "RSQLite", "DBI",
+                        "data.table", "metafor", "survival")
+
 
 
 # ---- 3. the page ----------------------------------------------------------------------
@@ -323,6 +443,46 @@ about_facts <- function(registry = COHORTS) {
          '</div>')
 }
 
+# A package's License field is written for a machine: "MIT + file LICENSE" means MIT, and the
+# trailing clause is packaging, not a second licence. Stripped so the page reads as a licence
+# name rather than as a DESCRIPTION field printed at a visitor.
+.about_lic_short <- function(x) trimws(gsub("[|+] *file LICEN[CS]E", "", as.character(x)))
+
+# FAILS LOUD if a declared runtime package is missing rather than rendering the name alone.
+# The alternative is a page that quietly drops a licence, and a licence that silently vanishes
+# from a credits list is the exact failure this whole section exists to prevent. It cannot fire
+# in a published image: scripts/docker_selfcheck.R refuses to finish the build without all nine.
+.about_software <- function(methods = ABOUT_METHODS, runtime = ABOUT_RUNTIME_PKGS) {
+  items <- vapply(methods, function(m)
+    paste0('<li><b>', .g_esc(m$name), '</b> ', .g_esc(m$role),
+           ' <span class="guide-fine">Cite: ', .g_esc(m$cite), '</span></li>'), character(1))
+  rt <- vapply(runtime, function(pk) {
+    d <- utils::packageDescription(pk)
+    if (!is.list(d) || is.null(d$License))
+      stop("the About page declares the package ", pk, " as part of the running application, ",
+           "but it is not installed here, so its licence cannot be read. The page must not ",
+           "guess a licence.")
+    paste0('<li><code>', .g_esc(pk), '</code> ', .g_esc(as.character(d$Version)),
+           ', ', .g_esc(.about_lic_short(d$License)), '</li>')
+  }, character(1))
+  paste0(
+    '<h4 class="guide-h3">Software and methods</h4>',
+    '<p>OMICohort is an assembly of <b>published methods</b> and <b>open source software</b>. ',
+    'The five below are not implementation details: their output is what you are reading. If a ',
+    'result here carries into your own work, cite the method it rests on as well as the cohorts ',
+    'it was measured in.</p>',
+    '<ul class="guide-list">', paste(items, collapse = ""), '</ul>',
+    '<p>The application you are using runs on <b>R</b> and the packages below, at the versions ',
+    'and licences this instance actually has. All are free software, and each states its own ',
+    'preferred citation.</p>',
+    '<ul class="guide-list guide-fine">', paste(rt, collapse = ""), '</ul>',
+    '<p class="guide-fine">The cohorts were fetched and assembled with further open source ',
+    'packages, chiefly <code>TCGAbiolinks</code> and <code>GEOquery</code> for retrieval and ',
+    "Bioconductor's human gene and Affymetrix array annotation packages for resolving probes to ",
+    'gene symbols. They moved and mapped the data rather than analysing it, which is why they ',
+    'are named here rather than listed above.</p>')
+}
+
 about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
                        license = ABOUT_LICENSE, logos = ABOUT_LOGOS) {
   cite <- if (nzchar(citation$doi))
@@ -392,6 +552,16 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 '(hazard ratios, confidence intervals and survival curves) and never displays ',
 'or distributes individual patient records. The list is exactly the set of cohorts this ',
 'tool analyses.</p>',
+# ADDED 2026-09-04 (step 141), answering the question the paragraph above leaves open. The
+# page said the cohorts are public and asked the reader to cite them; it never said what form
+# of each dataset is in use, nor what the reader is permitted to do with one. Both matter to
+# somebody deciding whether they can build on a result here, and the second is the half a
+# credit list structurally cannot carry: an obligation stated without the matching permission
+# reads as a restriction that was never imposed.
+'<p>Each cohort is used in the form its producers chose to publish: processed, ',
+'<b>de-identified</b> measurements of tumours, with no genotypes and no raw sequence. Where a ',
+'release states a licence, the entry below names it and says what it lets you do, so that a ',
+'cohort here can be reused on the same terms it reached us on.</p>',
 .about_sources(f),
 
 # ---- reference data --------------------------------------------------------------------
@@ -426,6 +596,8 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 'Analysis Center (2016). Analysis-ready standardized TCGA data from Broad GDAC Firehose ',
 'stddata__2016_01_28. Broad Institute of MIT and Harvard. doi:10.7908/C11G0KM9</li>',
 '</ul>',
+
+.about_software(),
 
 # "How it was built" stood here from step 110 until step 118, when it moved to the end of the
 # Guide. It had ended by pointing AT the Guide for the same material, which is the tell that it

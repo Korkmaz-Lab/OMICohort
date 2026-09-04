@@ -173,12 +173,28 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
 .g_esc <- function(x) .html_escape(x)
 .g_join <- function(x) paste(.g_esc(x), collapse = ", ")
 
+# THE ENDPOINT COLUMN CARRIES THE PRIMARY MARK, rather than a column of its own. Until step
+# 142 this table had nine columns and two of them were about endpoints: one listing what was
+# scanned and one naming which is primary. The primary endpoint is always one of the scanned
+# ones, so the second column repeated a value already on the row and cost a ninth of the width
+# to do it. Bolding it inside the list says the same thing in one column.
+#
+# tests/test_guide_derived.R section 3 reads this row for the presence of each SCANNED endpoint
+# and the absence of each declared-but-unscanned one, with fixed = TRUE. Wrapping the primary
+# in <b> does not disturb that: the substring is still there. Do not switch the join to
+# something that puts markup BETWEEN the letters of an endpoint name.
+.guide_eps <- function(t) {
+  if (!length(t$scanned_eps)) return("none")
+  paste(vapply(t$scanned_eps, function(e)
+    if (identical(e, t$primary)) paste0("<b>", .g_esc(e), "</b>") else .g_esc(e),
+    character(1)), collapse = ", ")
+}
+
 .guide_table <- function(f) {
   rows <- vapply(f$tissues, function(t) sprintf(
-    paste0("<tr><td><b>%s</b></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>",
+    paste0("<tr><td><b>%s</b></td><td>%s</td><td>%s</td><td>%s</td>",
            "<td>%s</td><td>%s / %s</td><td>%s</td><td>%s</td></tr>"),
-    .g_esc(t$label), .g_int(t$n_cohorts),
-    if (length(t$scanned_eps)) .g_join(t$scanned_eps) else "none", .g_esc(t$primary),
+    .g_esc(t$label), .g_int(t$n_cohorts), .guide_eps(t),
     if (length(t$strata)) paste0("<code>", .g_join(t$strata), "</code>") else "none",
     if (is.na(t$horizon)) "full" else paste0(.g_int(t$horizon), " mo"),
     .g_int(t$k), .g_int(t$n),
@@ -186,24 +202,56 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
       sprintf("%s of %s", .g_int(t$replicated), .g_int(t$discovered))), character(1))
 
   paste0(
-    # The 9 columns do not fit a narrow window. Scrolling the TABLE rather than the page is
-    # the rule the rest of the app follows for wide content.
+    # Eight columns still do not fit a narrow window. Scrolling the TABLE rather than the page
+    # is the rule the rest of the app follows for wide content.
     '<div class="guide-wrap"><table class="guide-tbl"><thead><tr>',
-    '<th>Tissue</th><th>Cohorts</th><th>Endpoints scanned</th><th>Primary</th><th>Stratified by</th>',
-    '<th>Horizon &tau;</th><th>Pool k / patients</th><th>Clear FDR</th><th>Replicated</th>',
+    '<th>Tissue</th><th>Cohorts</th><th>Endpoints</th><th>Stratified by</th>',
+    '<th>Horizon &tau;</th><th>Cohorts pooled / patients</th>',
+    # THE THRESHOLD IS INTERPOLATED, NEVER TYPED. Section 6 of tests/test_guide_derived.R
+    # allows exactly one occurrence of the number in non-comment source: the GUIDE_FDR
+    # declaration. A header that spelled it out would be a second copy, and a page that counts
+    # at one threshold while its heading claims another is unreadable from the outside.
+    '<th>Pass q &lt; ', format(GUIDE_FDR), '</th><th>Replicated</th>',
     '</tr></thead><tbody>', paste(rows, collapse = ""), '</tbody></table></div>',
-    '<p class="guide-fine">Every figure in this table is read from <code>config/cohorts.tsv</code> ',
-    'and the scan files in <code>results/</code> when the app starts. None of it is typed into ',
-    'this page, so it cannot disagree with the analysis it describes. "Clear FDR" counts ',
-    'regulators at Benjamini-Hochberg q &lt; ', format(GUIDE_FDR),
-    ' in that tissue&rsquo;s primary-endpoint scan ',
-    ': the STRATIFIED one wherever a stratifier is declared, since that is the estimand ',
-    'the app reports; ',
-    '"Endpoints scanned" is what exists on disk, not what the registry declares: two ',
-    'tissues register a third endpoint that never reaches the minimum pool size and so is ',
-    'never scanned; ',
-    '"Replicated" is the independent-validation half of the discovery split, and the zeros are ',
-    'real. For further information, see <i>What a hit does not mean</i>.</p>')
+
+    # WHAT THE COLUMNS MEAN, as a list rather than the single long sentence this used to be.
+    # The old paragraph ran five clauses together separated by semicolons and defined only two
+    # of the nine headings; "Clear FDR" in particular was a heading a reader could not decode
+    # and a definition that assumed they already knew what a false discovery rate controls.
+    # A reader meets this table before anything else on the page, so a column they cannot read
+    # is a number they will either ignore or misread.
+    '<p class="guide-fine">What the columns mean:</p>',
+    '<ul class="guide-list guide-fine">',
+    '<li><b>Cohorts</b>: how many separate patient series this tissue has in the tool. They ',
+    'are always analysed one at a time and then combined, never merged into a single pool.</li>',
+    '<li><b>Endpoints</b>: which survival endpoints were scanned across all regulators. The ',
+    '<b>primary</b> one is in bold; it is the endpoint the figures in this row describe. An ',
+    'endpoint appears here only if it was actually scanned, so a tissue whose third endpoint ',
+    'never reached the minimum pool size does not list it.</li>',
+    '<li><b>Stratified by</b>: a clinical variable each cohort&rsquo;s model was given its own ',
+    'baseline risk for, so that patients are compared within a group rather than across ',
+    'groups. &ldquo;none&rdquo; means no stratifier was declared for that tissue.</li>',
+    '<li><b>Horizon &tau;</b>: follow-up beyond this many months is not used, which keeps a ',
+    'few very long-followed patients from carrying a result. &ldquo;full&rdquo; means the ',
+    'whole of the available follow-up is used.</li>',
+    '<li><b>Cohorts pooled / patients</b>: how many cohorts and how many patients actually ',
+    'entered the combined estimate for the primary endpoint. This can be fewer than ',
+    '<b>Cohorts</b>, because a cohort joins only if it recorded that endpoint.</li>',
+    '<li><b>Pass q &lt; ', format(GUIDE_FDR), '</b>: how many regulators cleared that ',
+    'threshold in the scan for this row. The q value is a Benjamini-Hochberg false discovery ',
+    'rate, which is a statement about the whole list rather than about any one regulator: of ',
+    'the regulators called here, roughly ', format(100 * GUIDE_FDR), ' in every hundred are ',
+    'expected to be there by chance. Where a stratifier is declared, the stratified scan is ',
+    'the one counted, since that is the estimate the app reports.</li>',
+    '<li><b>Replicated</b>: regulators found in one set of cohorts and then tested in a ',
+    'separate set that took no part in finding them. It reads as <i>held up of found</i>. ',
+    'The zeros are real results and not missing data: in those tissues nothing survived the ',
+    'second look.</li>',
+    '</ul>',
+    '<p class="guide-fine">Every figure in this table is computed when the app starts, from ',
+    'the same registry and result tables the analysis itself was run on. None of it is typed ',
+    'into this page, so it cannot disagree with the analysis it describes. For what these ',
+    'numbers do not license, see <i>What a hit does not mean</i>.</p>')
 }
 
 guide_html <- function(f) {
@@ -400,11 +448,17 @@ guide_html <- function(f) {
 'models and random-effects meta-analysis: the steps above, in the order the pipeline ',
 'runs them. The engine is R, with <code>survival</code> for the models, <code>metafor</code> ',
 'for the pooling, and Shiny for this interface.</p>',
-'<p>The cohort registry (<code>config/cohorts.tsv</code>) ships with the tool and is the ',
-'single source of truth for which cohorts, endpoints, horizons and stratifiers exist. Every ',
-'page of this app, including every figure on this one, derives what it states ',
-'from that file at startup rather than restating it, which is why nothing here can quietly ',
-'disagree with what was actually analysed.</p>',
+# NAMED WITHOUT ITS PATH since step 142. This paragraph said "the cohort registry
+# (config/cohorts.tsv)", which is true, and which means nothing to a reader who has a browser
+# and not a checkout. The POINT of the sentence survives without the filename: what matters to
+# a visitor is that one record governs the whole app and that every page derives from it, not
+# where that record sits on somebody's disk.
+'<p>One registry ships inside the tool and is the single record of which cohorts, endpoints, ',
+'horizons and stratifiers exist. Every page of this app, including every figure on this one, ',
+'reads what it states from that registry when the app starts rather than repeating it, which ',
+'is why nothing here can quietly disagree with what was actually analysed. If a cohort were ',
+'added or an endpoint dropped, this page would say so on the next start without anyone ',
+'editing it.</p>',
 '<p class="guide-fine">Where the data came from and on whose terms, the licence, how to ',
 'cite the tool and who built it are on the <b>About</b> tab.</p>',
 

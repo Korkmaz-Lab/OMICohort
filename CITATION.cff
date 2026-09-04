@@ -23,8 +23,8 @@ abstract: >-
 type: software
 license: GPL-3.0-or-later
 repository-code: "https://github.com/Korkmaz-Lab/OMICohort"
-version: "0.1.1"
-date-released: "2026-09-01"
+version: "0.1.2"
+date-released: "2026-09-04"
 keywords:
   - survival analysis
   - meta-analysis
