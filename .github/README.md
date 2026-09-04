@@ -23,6 +23,21 @@ and **4,227 recorded events**.
 It is a survival analysis tool for cancer genomics, built in the Korkmaz Lab at Koç
 University.
 
+## How to run it
+
+The image carries the code **and** the roughly 1.76 GB of data it serves from, so there is
+nothing to download separately and nothing to configure. Just run the command below in terminal/console.
+
+```bash
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.2
+```
+
+Then open **http://localhost:7654** in your browser. The same command works on Intel, AMD and Apple Silicon
+machines and the tag covers both architectures
+
+The container runs unprivileged, needs no network access once it has started, and writes
+nothing outside its own temporary directory.
+
 ## The problem it is built around
 
 A molecular marker that separates survival curves in one published cohort very often fails to
@@ -110,22 +125,6 @@ An association with survival is not a mechanism, a driver, or a target. These co
 observational, treatment is uncontrolled, and a marker can track outcome because it tracks
 stage or subtype rather than anything causal. The tool is built to make an association honest
 and reproducible, not to tell you what it means.
-
-## Run it
-
-The image carries the code **and** the roughly 1.76 GB of data it serves from, so there is
-nothing to download separately and nothing to configure.
-
-```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.2
-```
-
-Then open **http://localhost:7654**. The same command works on Intel, AMD and Apple Silicon
-machines: the tag covers both architectures, and the two builds were checked against each
-other down to the rendered figures.
-
-The container runs unprivileged, needs no network access once it has started, and writes
-nothing outside its own temporary directory.
 
 ## The data
 
