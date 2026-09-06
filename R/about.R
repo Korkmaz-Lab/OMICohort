@@ -280,6 +280,28 @@ ABOUT_VERSION <- "0.1.2"
 # has to change.
 ABOUT_CITATION <- list(doi = "", note = "")
 
+# THE SOFTWARE DOI, minted 2026-09-04 from the v0.1.2 GitHub release by Zenodo's integration.
+# Declared here for the same reason ABOUT_VERSION is: it is written into CITATION.cff and into
+# the badge on .github/README.md, neither of which can read R, and section 12b of
+# tests/test_release_files.R holds both to this string.
+#
+# THIS IS THE CONCEPT DOI, and the choice is deliberate. Zenodo mints two: a VERSION doi
+# (10.5281/zenodo.22344780) that points at v0.1.2 forever, and this CONCEPT doi that always
+# resolves to the newest version. The version doi is the more precise citation and it is the
+# wrong one to write down here, because it would have to be edited by hand after every
+# release, is unknowable until after the release exists so no test could derive it, and would
+# therefore go stale silently the first time somebody forgot. A reader following a citation
+# wants the current tool; a reader pinning an exact result can reach the version doi from this
+# record in one click.
+#
+# NOT THE SAME FIELD AS ABOUT_CITATION$doi, and it must never be moved into it. That one means
+# "a PAPER exists", the About page's whole "no paper yet" section is keyed on it, and
+# tests/test_release_files.R section 3 makes it demand a preferred-citation block in the CFF.
+# A software archive is not a paper. The user's decision on 2026-09-04 is that the About page
+# names the paper doi when there is one and nothing before that, so this string is repository
+# metadata and is deliberately NOT rendered on any page.
+ABOUT_SOFTWARE_DOI <- "10.5281/zenodo.22344779"
+
 # GPL-3, chosen 2026-08-30 for a specific reason rather than by habit: `metafor` is
 # GPL (>= 2) and it is not an optional extra -- it IS the pooling engine, so every result
 # this tool reports passes through it. Licensing the whole under GPL-3 removes the question

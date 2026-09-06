@@ -23,6 +23,11 @@ abstract: >-
 type: software
 license: GPL-3.0-or-later
 repository-code: "https://github.com/Korkmaz-Lab/OMICohort"
+# The Zenodo CONCEPT doi, which always resolves to the newest archived version. The version
+# doi for this particular release (10.5281/zenodo.22344780) is deliberately not written here:
+# it would need editing by hand after every release and would go stale silently. Declared once
+# as ABOUT_SOFTWARE_DOI in R/about.R; do not edit this line on its own.
+doi: "10.5281/zenodo.22344779"
 version: "0.1.2"
 date-released: "2026-09-04"
 keywords:

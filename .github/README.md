@@ -16,6 +16,8 @@
 
 # OMICohort
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22344779.svg)](https://doi.org/10.5281/zenodo.22344779)
+
 **Does this molecular score predict patient outcome?** OMICohort asks that question across
 **53 patient cohorts** in **7 cancer types**, covering **10,430 patients**
 and **4,227 recorded events**.
