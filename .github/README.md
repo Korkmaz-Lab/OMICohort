@@ -27,10 +27,21 @@
   the canvas, so on a 2x display a 36 px box asks the browser for exactly the 72
   rows the image has: native resolution, no resampling. It also lands on the h1
   line box, so the mark sits with the title instead of stretching the line.
+
+  align=texttop, and align=middle is the trap. On the rendered page the mark sat
+  visibly low, and the cause is that Blink maps the align=middle attribute to
+  vertical-align: -webkit-baseline-middle, which centres the image on the
+  BASELINE rather than on the text. Measured on the live page: the mark's centre
+  sat 6.2 px below the centre of the cap height. align=texttop brings that to
+  1.1 px. Two other things were measured and rejected: align=absmiddle, which is
+  the one value Blink maps to a true vertical-align: middle, still leaves 3.6 px,
+  and a two cell table centres perfectly but inherits GitHub's table borders.
+  A style attribute is not an option; GitHub's sanitiser strips it from the img
+  and from the h1, and substitutes its own.
 -->
 
 <h1>
-  <img src="https://raw.githubusercontent.com/Korkmaz-Lab/OMICohort/main/www/logo.png" alt="" height="36" align="middle">
+  <img src="https://raw.githubusercontent.com/Korkmaz-Lab/OMICohort/main/www/logo.png" alt="" height="36" align="texttop">
   OMICohort
 </h1>
 
