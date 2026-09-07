@@ -1646,7 +1646,8 @@ server <- function(input, output, session) {
       feature = input$feature, kind = input$kind, cohorts = input$cohorts,
       max_followup = .tau_arg(input$max_fu), adjust_strata = strat_eff,
       strat_var = strata_var_for_scan(ct_, ep),
-      endpoint = ep, cancer_type = ct_, scans = SCANS_BY_CT[[ct_]],
+      endpoint = ep, cancer_type = ct_, cancer_label = cancer_label_of(ct_),
+      scans = SCANS_BY_CT[[ct_]],
       # horizon_for(ct_, ep), NOT the bare horizon_for(ct_): since horizons became
       # per-endpoint (2026-07-27) the bare call returns min() over the tissue's taus, which
       # is the OTHER endpoint's window for luad/DFS (73 vs the scan's 99) and coad/OS (103
@@ -2009,7 +2010,8 @@ server <- function(input, output, session) {
             feature = feat, kind = kind, cohorts = co, max_followup = tau,
             adjust_strata = strat && length(strata_vars_of(ct, ep)) > 0,
             strat_var = strata_var_for_scan(ct, ep),
-            endpoint = ep, cancer_type = ct, scans = SCANS_BY_CT[[ct]],
+            endpoint = ep, cancer_type = ct, cancer_label = cancer_label_of(ct),
+            scans = SCANS_BY_CT[[ct]],
             expected_cohorts = co, expected_horizon = tau)
         }
         e
@@ -2345,7 +2347,7 @@ server <- function(input, output, session) {
             e$rank <- scan_rank_lookup(
               feature = g, kind = kind, cohorts = co, max_followup = tau,
               adjust_strata = strat, strat_var = strata_var_for_scan(ct_, ep),
-              endpoint = ep, cancer_type = ct_,
+              endpoint = ep, cancer_type = ct_, cancer_label = cancer_label_of(ct_),
               scans = SCANS_BY_CT[[ct_]], expected_cohorts = co, expected_horizon = tau)
           }
           e

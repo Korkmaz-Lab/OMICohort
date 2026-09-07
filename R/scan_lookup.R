@@ -56,9 +56,21 @@
 #                     endpoint but one. See tests/test_scan_rank_wiring.R.
 scan_rank_lookup <- function(feature, kind, cohorts, max_followup, adjust_strata,
                              endpoint, cancer_type, scans, expected_cohorts,
-                             expected_horizon, fdr = 0.05, strat_var = NULL) {
+                             expected_horizon, fdr = 0.05, strat_var = NULL,
+                             cancer_label = NULL) {
+  # cancer_label is PASSED IN for the same reason strat_var is: this file makes no registry
+  # calls (see the header), and tests/test_scan_lookup.R loads it alone. Without it the
+  # sentences below were built from the raw registry slug and a visitor read "the luad OS
+  # marginal scan" (found 2026-09-07, step 157, while reading these strings for the
+  # manuscript figure). Required rather than defaulted to cancer_type: a default IS the bug,
+  # and it would reappear the first time a new caller forgot.
+  if (is.null(cancer_label) || !nzchar(cancer_label) || is.na(cancer_label))
+    stop("scan_rank_lookup(): cancer_label is required. The rank line names the tissue to a ",
+         "reader, and this file makes no registry calls, so the caller passes the display ",
+         "label in (app.R: cancer_label_of(cancer_type)). Passing the raw slug would put an ",
+         "internal code like 'luad' in front of a visitor.")
   base <- list(applicable = FALSE, feature = feature,
-               cancer_type = cancer_type, endpoint = endpoint)
+               cancer_type = cancer_type, cancer_label = cancer_label, endpoint = endpoint)
 
   # The scan ranks VIPER activity; there is no expression/immune/cna scan to rank against.
   if (!identical(kind, "viper")) return(c(base, list(status = "kind")))
@@ -113,14 +125,18 @@ scan_rank_lookup <- function(feature, kind, cohorts, max_followup, adjust_strata
 
   rank <- match(feature, scan_df$tf[order(scan_df$p)])   # rank by p, don't trust file order
   row  <- scan_df[i, ]
-  list(applicable = TRUE, status = "ok", feature = feature,
-       cancer_type = cancer_type, endpoint = endpoint, stratified = strat,
-       strat_var = sv,
+  # BUILT FROM `base`, not assembled again. Every other return path in this function is
+  # c(base, list(...)); this one listed the identifying fields a second time, so when
+  # cancer_label was added to base (step 157) the ok result -- the only one that renders a
+  # rank -- was the single result that did not carry it, and format_scan_rank() refused it.
+  # Two copies of a field are two fields.
+  modifyList(base, list(
+       applicable = TRUE, status = "ok", stratified = strat,
        rank = rank, n = nrow(scan_df), q = row$q, p = row$p, HR = row$HR, k = row$k,
        clears_fdr = isTRUE(row$q < fdr),
        # Every breast row is k<=3 (tau^2 unidentified), so a breast rank rests on the
        # pooling rule; ovarian is k up to 13 and mostly identified. Surface it per row.
-       pool_ci_identified = isTRUE(as.logical(row$pool_ci_identified)))
+       pool_ci_identified = isTRUE(as.logical(row$pool_ci_identified))))
 }
 
 # The hover explanation for a rank that exists. The two unexplained terms in that sentence
@@ -143,7 +159,15 @@ format_scan_rank <- function(res) {
   # "adjusted" if the variable is unknown, which is vague but never WRONG.
   .adj <- function(res) if (is.null(res$strat_var) || is.na(res$strat_var)) "adjusted"
                         else paste0(toupper(res$strat_var), "-adjusted")
-  scan_lbl <- sprintf("%s %s %s scan", res$cancer_type, toupper(res$endpoint),
+  # The DISPLAY label, never res$cancer_type: that field is the registry slug and this is a
+  # sentence a visitor reads. Guarded rather than defaulted, because a result assembled by
+  # hand (a test fixture, a future caller) would otherwise fall back to the slug in silence,
+  # which is exactly the defect this replaced.
+  if (is.null(res$cancer_label) || !nzchar(res$cancer_label))
+    stop("format_scan_rank(): this result carries no cancer_label. Build it with ",
+         "scan_rank_lookup(), which requires one; the raw cancer_type is a registry slug ",
+         "and must not reach a reader.")
+  scan_lbl <- sprintf("%s %s %s scan", res$cancer_label, toupper(res$endpoint),
                       if (isTRUE(res$stratified)) .adj(res) else "marginal")
   if (identical(res$status, "ok")) {
     txt <- sprintf("%s ranks %s of %d TFs by p in the %s (VIPER activity); BH q = %s, %s",
@@ -159,7 +183,7 @@ format_scan_rank <- function(res) {
     kind    = "Genome-wide rank applies to VIPER-activity queries only (the scan ranks VIPER activity), so it is not shown here.",
     no_scan = sprintf("No%s genome-wide scan exists for %s %s, so no rank is shown.",
                       if (isTRUE(res$stratified)) paste0(" ", .adj(res)) else "",
-                      res$cancer_type, toupper(res$endpoint)),
+                      res$cancer_label, toupper(res$endpoint)),
     cohorts = "Genome-wide rank applies only to the full-cohort tissue scan; your cohort selection differs, so no rank is shown.",
     horizon = "Genome-wide rank applies only at the scan's follow-up horizon; your horizon differs, so no rank is shown.",
     not_found = sprintf("%s was not retained in the %s (too few events, or below VIPER's minimum regulon size in every cohort), so it has no genome-wide rank.",
