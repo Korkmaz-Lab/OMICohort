@@ -12,9 +12,27 @@
   HOUSE RULE FOR THIS PAGE (2026-09-03): no em dashes, no en dashes, no double
   hyphens. Section 11 of tests/test_release_files.R enforces it on prose lines.
   Use commas, colons, semicolons or a new sentence instead.
+
+  THE LOGO IN THE TITLE (2026-09-06) is www/logo.png, the mark on its own. The
+  other two are wrong for this spot: www/logo_full.png already carries the
+  wordmark, so it would print the name twice beside a heading that says it, and
+  www/logo-renkli.png is the university's mark and not this project's.
+
+  Its src is an absolute raw.githubusercontent URL rather than a relative path.
+  GitHub resolves a relative link in this file against .github/, so the path
+  would have to climb out of that directory, and a landing page whose first
+  element is a broken image is not a thing to find out about after pushing.
+
+  height=36 is measured, not chosen by eye. The file is 174x72 and its ink fills
+  the canvas, so on a 2x display a 36 px box asks the browser for exactly the 72
+  rows the image has: native resolution, no resampling. It also lands on the h1
+  line box, so the mark sits with the title instead of stretching the line.
 -->
 
-# OMICohort
+<h1>
+  <img src="https://raw.githubusercontent.com/Korkmaz-Lab/OMICohort/main/www/logo.png" alt="" height="36" align="middle">
+  OMICohort
+</h1>
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22344779.svg)](https://doi.org/10.5281/zenodo.22344779)
 
