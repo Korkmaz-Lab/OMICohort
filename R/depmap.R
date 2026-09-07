@@ -201,7 +201,7 @@ depmap_note <- function(feature, kind, lists) {
     # Deliberately no cell-line count. It would be the ROW count of CRISPRGeneEffect.csv,
     # and staging reads only that file's header (see scripts/fetch_depmap.py) -- quoting
     # a number this tree cannot verify is worse than not quoting one.
-    essential  = sprintf("%s: COMMON ESSENTIAL -- knockout stops growth in nearly all screened cell lines.",
+    essential  = sprintf("%s: COMMON ESSENTIAL. Knockout stops growth in nearly all screened cell lines.",
                          rel),
     screened   = sprintf("%s: screened, not a common-essential gene.", rel),
     unscreened = sprintf("%s: this gene was not screened in this release.", rel))

@@ -839,7 +839,7 @@ ui <- navbarPage(
   # updateNavbarPage() the "Query selected TF ->" button already uses, so there is one
   # navigation mechanism in this file instead of two, and it is one the tests can see.
   title = actionLink(
-    "brand_home", class = "brand-link", title = "OMICohort \u2014 open the guide",
+    "brand_home", class = "brand-link", title = "OMICohort, open the guide",
     label = tags$span(
       class = "brand-wrap",
       tags$img(src = "logo.png", class = "brand-logo", alt = "OMICohort"),
@@ -1041,7 +1041,7 @@ ui <- navbarPage(
                    "Every tissue in the registry runs as its own panel, at its own declared ",
                    "follow-up horizon for the endpoint above. Nothing is pooled across panels. ",
                    "Each tissue's primary endpoint differs, so a single endpoint is not every ",
-                   "panel's primary analysis — see the note on each panel.")),
+                   "panel's primary analysis. See the note on each panel.")),
           # The export appears only AFTER a run, for the same reason the panels do: a
           # download button with nothing behind it is a promise the tab cannot keep.
           column(3, style = "text-align:right;", uiOutput("mq_dl_ui")))
@@ -1109,7 +1109,7 @@ ui <- navbarPage(
           column(9, tags$p(class = "note note-body note-stack",
             "Each gene is analysed on its own over this tissue's cohorts for the endpoint ",
             "above, at that tissue and endpoint's declared horizon. Nothing is pooled across ",
-            "genes, and no correction is applied across the list — a hand-picked set of ",
+            "genes, and no correction is applied across the list. A hand-picked set of ",
             "ten is not a multiple-testing family. The anchor is each gene's rank in the ",
             "genome-wide scan, reported per row.")),
           column(3, div(style = "text-align: right;", uiOutput("mg_dl_ui"))))
@@ -1146,7 +1146,7 @@ ui <- navbarPage(
             "Protein and phospho-protein measured by reverse-phase protein array on TCGA ",
             "tumours. This is a SEPARATE layer, not another cohort: RPPA exists for TCGA ",
             "only, so every query here is a single cohort and nothing is pooled. Rows are ",
-            "antibodies on the same patients \u2014 a phospho row reports the modified form of ",
+            "antibodies on the same patients. A phospho row reports the modified form of ",
             "the protein above it. HRs are unstratified and are not on the same footing as ",
             "this tissue's expression result for the same gene.")))
       ),

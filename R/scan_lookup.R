@@ -146,7 +146,7 @@ format_scan_rank <- function(res) {
   scan_lbl <- sprintf("%s %s %s scan", res$cancer_type, toupper(res$endpoint),
                       if (isTRUE(res$stratified)) .adj(res) else "marginal")
   if (identical(res$status, "ok")) {
-    txt <- sprintf("%s ranks %s of %d TFs by p in the %s (VIPER activity); BH q = %s — %s",
+    txt <- sprintf("%s ranks %s of %d TFs by p in the %s (VIPER activity); BH q = %s, %s",
                    res$feature, .ordinal(res$rank), res$n, scan_lbl, signif(res$q, 2),
                    if (isTRUE(res$clears_fdr)) "clears FDR<0.05." else "does not clear FDR<0.05.")
     if (!isTRUE(res$pool_ci_identified))

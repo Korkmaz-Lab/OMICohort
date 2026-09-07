@@ -599,12 +599,35 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
 # is no cross-panel comparison to protect, and forcing an axis would differ from metafor's
 # own choice for no reason a reader could see. NULL is also what a caller passes to get
 # today's behaviour, so the two meet.
+# The cohort labels, in ONE definition. forest_plot() draws them; mq_forest_xrange() has to
+# measure them for the whole run. Two copies of this format string would be two label formats
+# the day someone edits one.
+.forest_slab <- function(est)
+  sprintf("%-8s  n=%d, ev=%d", names(est),
+          vapply(est, `[[`, numeric(1), "n"), vapply(est, `[[`, numeric(1), "events"))
+
+.panel_slab <- function(res) {
+  est <- Filter(function(x) isFALSE(x$skipped) && !is.null(x$logHR), res$per_cohort)
+  if (!length(est)) character(0) else .forest_slab(est)
+}
+
 mq_forest_xrange <- function(panels) {
   b <- Filter(Negate(is.null), lapply(panels, function(e)
     if (is.null(e$res)) NULL else .forest_bounds(e$res)))
   if (length(b) < 2) return(NULL)
-  c(min(vapply(b, `[`, numeric(1), 1L)), max(vapply(b, `[`, numeric(1), 2L)))
+  out <- c(min(vapply(b, `[`, numeric(1), 1L)), max(vapply(b, `[`, numeric(1), 2L)))
+  # The run's cohort labels ride along, because the gutter that holds them has to be decided
+  # ONCE for the whole run. Deciding it per panel is what broke the one-ruler invariant on the
+  # first attempt at this fix: each panel then resolves its own xlim, and a shared alim with
+  # per-panel xlim is five axes wearing one set of tick labels. Carried as an attribute so the
+  # value stays the two-number range every existing caller and test passes around.
+  attr(out, "run_slab") <- unlist(lapply(panels, function(e)
+    if (is.null(e$res)) character(0) else .panel_slab(e$res)), use.names = FALSE)
+  out
 }
+
+# The gap between the longest label and the plot region. One constant, both paths.
+FOREST_GUTTER_IN <- 0.12
 
 # The axis for a shared range: metafor's OWN layout for it.
 #
@@ -650,6 +673,23 @@ mq_forest_xrange <- function(panels) {
   z <- metafor::forest(x = xr, ci.lb = c(xr[1], xr[1]), ci.ub = c(xr[2], xr[2]),
                        refline = 1, slab = c("a", "b"),
                        header = c("Cohort", FOREST_HR_HEADER))
+  # One gutter for the whole run, fitted here because this is the one place the shared ruler
+  # is computed. Measured at metafor's own resolved cex on a device of the export's width; the
+  # app's on-screen forests are WIDER, where the same xlim leaves more room rather than less,
+  # so a gutter fitted here is sufficient everywhere it is used. Panels all resolve cex = 1
+  # under forest_height_in()'s sizing, and tests/test_forest_slab_fit.R asserts that rather
+  # than leaving it as an assumption -- if a panel ever shrinks its text, this measurement
+  # would be taken at the wrong size and the test says so instead of the figure colliding.
+  rs <- attr(xr, "run_slab")
+  if (!is.null(rs) && length(rs)) {
+    w_in <- graphics::par("pin")[1]
+    l_in <- max(graphics::strwidth(rs, units = "inches", cex = z$cex))
+    cfrac <- (l_in + FOREST_GUTTER_IN) / w_in
+    if (is.finite(cfrac) && cfrac < 1) {
+      need <- (z$alim[1] - cfrac * z$xlim[2]) / (1 - cfrac)
+      if (is.finite(need) && need < z$xlim[1]) z$xlim[1] <- need
+    }
+  }
   graphics::par(op)
   if (!(z$alim[1] <= xr[1] && z$alim[2] >= xr[2]))
     stop(sprintf(paste("metafor chose an axis [%g, %g] that does not contain the shared",
@@ -673,6 +713,74 @@ mq_forest_xrange <- function(panels) {
   invisible(xr)
 }
 
+# The left column has to hold the COHORT labels too, and metafor does not size it for them.
+#
+# The bug, seen 2026-09-07 on the LGG panel built for the manuscript figure: the row
+# "CGGA_ARRAY301_LGG  n=105, ev=42" was drawn straight through its own confidence interval.
+# metafor sizes the label gutter as a fraction of the AXIS RANGE, while a label is a fixed
+# number of INCHES, so whether a name fits is a property of the drawn figure and of nothing
+# in the data. Enumerated across every tissue and endpoint at the export width, 4 of the 11
+# real forests collided (gbm OS by 0.48 user units, lgg OS 0.14, lusc OS 0.02, lusc DFS 0.04)
+# and only ovarian had real clearance; breast OS cleared by 0.03, which is not clearance.
+#
+# tests/test_forest_label_fit.R could not see it. That test measures the POOLED label, and
+# forest_plot() carried only `mlab` out on its layout -- so the per-cohort labels were not
+# reachable from the return value at all. `slab` is carried out below for the same reason
+# `mlab` already was, and tests/test_forest_slab_fit.R measures against it.
+#
+# Solved in USER coordinates, from INCHES, because the two are related by xlim itself and so
+# the naive "widen until it fits" is circular. With W the plot width in inches, L the widest
+# label in inches, g the gutter, a = alim[1] and b = xlim[2], the label ends at
+# xlim[1] + (L+g) * (b - xlim[1]) / W, and requiring that to reach no further than a solves to
+# xlim[1] <= (a - c*b) / (1 - c) with c = (L+g)/W. c >= 1 means the label is wider than the
+# whole plot region, which no xlim can fix; metafor's own choice is left alone there.
+#
+# The measurement pass runs on a device of THE SAME SIZE as the real one, and that is
+# load-bearing rather than tidy: the mapping from inches to user units is a property of the
+# device, so measuring on a fixed-width scratch device would compute the right gutter for the
+# wrong figure -- which is exactly the failure mode the pooled-label bug was. Device
+# discipline follows .forest_axis(): restore the caller's device BY NAME, never by trusting
+# dev.off() to fall back to it.
+#
+# ONLY for a forest drawn on its own axis. In shared-axis mode (the Multiple query tab) every
+# panel of a run must resolve to ONE ruler -- that is the whole point of mq_forest_xrange(),
+# and tests/test_forest_shared_axis.R pins it -- so a gutter widened per panel would give each
+# panel its own xlim and reintroduce exactly the five-axes bug that feature was built to kill.
+# The shared path needs no widening anyway, and not by luck: the shared range is the UNION of
+# the panels' ranges, so its axis is never narrower than any panel's own and metafor's gutter,
+# being a fraction of that axis, is never narrower either. Measured over four features across
+# all seven tissues, the tightest shared-axis clearance was +0.39 user units against the
+# +0.02 that collided on a single panel. tests/test_forest_slab_fit.R checks that claim rather
+# than trusting this paragraph.
+#
+# Returns `ax` UNCHANGED when the labels already fit, so every forest that was correct before
+# is drawn by the identical call it was drawn by before.
+.slab_gutter <- function(base, ax, slab, gap_in = FOREST_GUTTER_IN) {
+  cur <- grDevices::dev.cur()
+  din <- graphics::par("din")
+  mar <- graphics::par("mar")
+  f <- tempfile(fileext = ".pdf")
+  grDevices::pdf(f, width = din[1], height = din[2])
+  on.exit({
+    grDevices::dev.off()
+    if (cur != 1L) grDevices::dev.set(cur)
+    unlink(f)
+  })
+  op <- graphics::par(mar = mar)
+  z <- do.call(metafor::forest, c(base, ax))
+  w_in <- graphics::par("pin")[1]
+  l_in <- max(graphics::strwidth(slab, units = "inches", cex = z$cex))
+  graphics::par(op)
+  if (!is.finite(w_in) || w_in <= 0 || !is.finite(l_in)) return(ax)
+  cfrac <- (l_in + gap_in) / w_in
+  if (!is.finite(cfrac) || cfrac >= 1) return(ax)
+  need <- (z$alim[1] - cfrac * z$xlim[2]) / (1 - cfrac)
+  if (!is.finite(need) || need >= z$xlim[1]) return(ax)
+  add <- list(alim = z$alim, xlim = c(need, z$xlim[2]))
+  if (!is.null(z$at)) add$at <- z$at
+  utils::modifyList(ax, add)
+}
+
 # xrange = NULL is today's figure, unchanged: metafor is called with no alim/xlim/at at all,
 # not with NULL ones. That distinction is load-bearing -- forest.rma rejects alim = NULL with
 # "Argument 'alim' must be of length 2", so the arguments have to be ABSENT, which is why the
@@ -685,7 +793,7 @@ forest_plot <- function(res, file = NULL, xrange = NULL) {
   vi <- vapply(est, `[[`, numeric(1), "se")^2
   n  <- vapply(est, `[[`, numeric(1), "n")
   ev <- vapply(est, `[[`, numeric(1), "events")
-  slab <- sprintf("%-8s  n=%d, ev=%d", names(est), n, ev)
+  slab <- .forest_slab(est)
 
   h <- forest_height_in(length(est))
   opened <- .open_dev(file, width = FOREST_WIDTH_IN, height = h)
@@ -714,20 +822,28 @@ forest_plot <- function(res, file = NULL, xrange = NULL) {
   # the single-panel figure is unchanged -- see the note on forest_plot()'s signature.
   ax   <- if (is.null(xrange)) list() else .forest_axis(.check_xrange(xrange))
   head <- c(FOREST_SLAB_HEADER, FOREST_HR_HEADER)
+  # Single-axis forests get their label gutter fitted; shared-axis panels must not, or the
+  # one ruler becomes several. See the note on .slab_gutter().
+  .gutter <- if (is.null(xrange)) .slab_gutter else function(base, ax, slab) ax
 
   if (length(est) >= 2) {
     m <- .forest_rma(yi, vi)
     mlines <- .pooled_mlab(sum(n), sum(ev), m$I2, m$pval, length(est))
     mlab   <- .stack_left(mlines)
-    z <- do.call(metafor::forest, c(list(m, transf = exp, refline = 1, slab = slab,
-                                         xlab = xlab, header = head, mlab = mlab), ax))
+    base <- list(m, transf = exp, refline = 1, slab = slab,
+                 xlab = xlab, header = head, mlab = mlab)
+    z <- do.call(metafor::forest, c(base, .gutter(base, ax, slab)))
     z$mlab <- mlab; z$mlab_lines <- mlines
   } else {
     # Single cohort: no pooling — plot the lone estimate with its normal CI.
-    z <- do.call(metafor::forest, c(list(x = yi, vi = vi, transf = exp, refline = 1,
-                                         slab = slab, xlab = xlab, header = head), ax))
+    base <- list(x = yi, vi = vi, transf = exp, refline = 1,
+                 slab = slab, xlab = xlab, header = head)
+    z <- do.call(metafor::forest, c(base, .gutter(base, ax, slab)))
     z$mlab <- NULL; z$mlab_lines <- NULL
   }
+  # Carried out for the same reason mlab is: the per-cohort labels' fit is a property of the
+  # drawn geometry, and a test that rebuilds them measures a string the figure need not hold.
+  z$slab <- slab
   graphics::title(main = paste(tl, collapse = "\n"), cex.main = 1.1)
   # metafor::forest returns its resolved layout (xlim, alim, cex, ...) invisibly, and it is
   # carried out on the result for the same reason metafor bothers to return it: the label
@@ -2546,7 +2662,7 @@ rppa_panel_size_in <- function(k)
   c(width = RPPA_PANEL_WIDTH_IN, height = rppa_panel_height_in(k))
 
 .rppa_hr_text <- function(r, show_n = FALSE) {
-  if (isTRUE(r$skipped)) return("--")
+  if (isTRUE(r$skipped)) return("not estimated")
   sprintf("%.2f [%.2f, %.2f]%s", r$HR, r$lo, r$hi,
           if (show_n) sprintf("  n=%d", r$n) else "")
 }
