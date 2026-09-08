@@ -249,6 +249,34 @@ ABOUT_LOGOS <- list(
        role = "center", height = 104L),
   list(file = "logo-renkli.png", alt = "Koç Üniversitesi", role = "institution", height = 52L))
 
+# People who helped but did not build it. DECLARED HERE FOR THE SAME REASON ABOUT_PEOPLE is,
+# and the reason is stronger rather than weaker: an acknowledgement is prose, and prose is
+# exactly where a real person's name gets typed in by hand, spelled from memory, and then
+# never checked again. tests/test_about_derived.R section 3e holds the rendered sentence to
+# this vector in BOTH directions, so a name on the page that is not here fails, and a name
+# here that never reached the page fails too.
+#
+# SPELLING IS AS SUPPLIED, exactly as for the two members above, and for the same reason: a
+# diacritic added or dropped by pattern is a guess about somebody's own name. If a name is
+# given in ASCII it stays in ASCII.
+#
+# WHY THIS IS NOT A `members` ENTRY. ABOUT_PEOPLE$members is who built the tool, renders with
+# a role, and is quoted as an author into CITATION.cff and the Zenodo creator records through
+# about_affiliation(). Thanks are not authorship: putting a name in `members` would enter it
+# into the deposit metadata as a creator, which is a claim nobody made. The two lists exist so
+# that credit and authorship cannot be conflated by an edit to a sentence.
+#
+# EMPTY RENDERS NOTHING. Same rule as `contact` and as `citation$doi`: the block appears when
+# there is something to say and is absent otherwise, rather than shipping a heading over an
+# apology. Filling `names` in is the whole edit; the page and the test follow from it.
+ABOUT_THANKS <- list(
+  # Supplied by the user on 2026-09-08, in this order, with these diacritics and this title.
+  # Rendered in the order given: it is the order it was given in, and reordering a list of
+  # people is a decision nobody made.
+  names = c("Dr. Alişan Kayabölen", "Asmar Aydamirli"),
+  note  = "for their feedback and their contributions to this tool"
+)
+
 # The order the page's own <h3> sections appear in, DECLARED so that it can be asserted. The
 # arrangement is a decision -- citation first, then the people, then the terms, with the two
 # kinds of obligation under one heading (step 118, at the user's call) -- and a decision about
@@ -273,7 +301,7 @@ ABOUT_SECTIONS <- c("How to cite", "People", "Licence and data terms")
 # unchanged; minor when the app gains or loses a capability; and if a released estimate ever
 # MOVES, that is not a version bump on its own, it is a BUILD_LOG entry saying which anchors
 # moved and why, with the version following from that.
-ABOUT_VERSION <- "0.1.2"
+ABOUT_VERSION <- "0.1.3"
 
 # No paper yet (confirmed 2026-08-30). While `doi` is empty the page renders the "not yet
 # published" form; filling `doi` in switches it to a formal citation block and nothing else
@@ -465,6 +493,30 @@ about_facts <- function(registry = COHORTS) {
          '</div>')
 }
 
+# Thanks, rendered from ABOUT_THANKS and from nothing else, and only when there is a name in
+# it. It sits INSIDE the People section, after the marks, as an <h4> rather than an <h3>: the
+# page's <h3> set is declared in ABOUT_SECTIONS and asserted in order, so a fourth top-level
+# heading is a change to the page's structure and would have to be declared as one. This is
+# not that. Acknowledgement belongs with the people, which is where a reader looks for it.
+#
+# A SENTENCE, NOT A LIST, and that is load-bearing rather than a style choice. The People
+# section's <li> count is held to length(ABOUT_PEOPLE$members) by the test, precisely so that
+# a name cannot be added to that list except through the declaration. Rendering thanks as
+# further list items would either break that check or force it to be loosened, and loosening
+# it is how the guard stops guarding. Each name is still wrapped in <b>, so the test can count
+# names in this paragraph without parsing English.
+.about_thanks <- function(thanks = ABOUT_THANKS) {
+  nm <- thanks$names[nzchar(thanks$names)]
+  if (!length(nm)) return("")
+  b <- vapply(nm, function(x) paste0('<b>', .g_esc(x), '</b>'), character(1))
+  # Serial "and" without an Oxford comma, built rather than written, so the sentence stays
+  # correct at one, two or five names instead of only at the count it was drafted for.
+  joined <- if (length(b) == 1L) b else
+    paste(paste(b[-length(b)], collapse = ", "), "and", b[[length(b)]])
+  paste0('<h4 class="guide-h3">Acknowledgements</h4>',
+         '<p>Thanks to ', joined, ' ', .g_esc(thanks$note), '.</p>')
+}
+
 # A package's License field is written for a machine: "MIT + file LICENSE" means MIT, and the
 # trailing clause is packaging, not a second licence. Stripped so the page reads as a licence
 # name rather than as a DESCRIPTION field printed at a visitor.
@@ -506,7 +558,8 @@ about_facts <- function(registry = COHORTS) {
 }
 
 about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
-                       license = ABOUT_LICENSE, logos = ABOUT_LOGOS) {
+                       license = ABOUT_LICENSE, logos = ABOUT_LOGOS,
+                       thanks = ABOUT_THANKS) {
   cite <- if (nzchar(citation$doi))
     paste0('<p>If OMICohort contributed to your work, please cite it: <code>',
            .g_esc(citation$doi), '</code>.</p>')
@@ -533,6 +586,7 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 '<h3 class="guide-h2">People</h3>',
 .about_people(people),
 .about_logos(logos),
+.about_thanks(thanks),
 
 # ONE section, TWO obligations, and the sub-headings are what keep them from reading as one
 # (step 118, at the user's call). Merging them entirely was the alternative and was not taken:

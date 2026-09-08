@@ -64,7 +64,7 @@ It operates unprivileged, requires no network access after startup, and provides
 Execute the following command in your terminal:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.2
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.3
 ```
 
 Once started, navigate to http://localhost:7654 in your web browser.
