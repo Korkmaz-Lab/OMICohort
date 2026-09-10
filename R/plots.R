@@ -850,7 +850,14 @@ FOREST_GUTTER_IN <- 0.12
 # not with NULL ones. That distinction is load-bearing -- forest.rma rejects alim = NULL with
 # "Argument 'alim' must be of length 2", so the arguments have to be ABSENT, which is why the
 # call below goes through do.call() and a list that is empty in the single-panel case.
-forest_plot <- function(res, file = NULL, xrange = NULL) {
+# `main` is TRUE everywhere in the app and in every download, which is where the drawn
+# title is the file's ONLY provenance: a forest saved to disk with no title is a picture of
+# eight hazard ratios for an unnamed gene in an unnamed tissue. It is FALSE in exactly one
+# place, ms/print_assets.R, where the same drawing is placed beside a panel title and a
+# caption that both name the gene, the score type and the endpoint -- there the drawn title
+# is the third copy, and the top margin it needs is whitespace above the plot.
+forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
+  stopifnot(is.logical(main), length(main) == 1L, !is.na(main))
   .require_survresult(res, "forest_plot")
   est <- Filter(function(x) isFALSE(x$skipped) && !is.null(x$logHR), res$per_cohort)
   if (length(est) < 1) stop("no estimable cohort to plot")
@@ -862,7 +869,13 @@ forest_plot <- function(res, file = NULL, xrange = NULL) {
 
   h <- forest_height_in(length(est))
   opened <- .open_dev(file, width = FOREST_WIDTH_IN, height = h)
-  op <- graphics::par(mar = c(5, 4, 3, 2))
+  # The top margin exists FOR the title: .title_lines() caps it at two lines and cex.main
+  # is 1.1, so three lines of margin is what holds it. With no title to hold, three lines
+  # is a gap between the caption above and the first cohort row. metafor derives its own
+  # cex from strheight("O") in USER units, which moves when the plot region does, so the
+  # drawn type size is a function of this number: it is measured, not assumed, by
+  # ms/build_figs.py's drawn_sizes() and asserted against that file's floor on every build.
+  op <- graphics::par(mar = c(5, 4, if (main) 3 else 1, 2))
   feat <- attr(res, "feature") %||% "score"
   # BEFORE metafor draws, not after. par(mar=) takes effect at the next plot.new(), so
   # growing the top margin once the rows are on the page moves nothing and the extra title
@@ -909,7 +922,11 @@ forest_plot <- function(res, file = NULL, xrange = NULL) {
   # Carried out for the same reason mlab is: the per-cohort labels' fit is a property of the
   # drawn geometry, and a test that rebuilds them measures a string the figure need not hold.
   z$slab <- slab
-  graphics::title(main = paste(tl, collapse = "\n"), cex.main = 1.1)
+  # Carried out on the layout for the same reason mlab and slab are: what the figure DREW,
+  # not what it could have drawn. NULL is the assertable difference between "suppressed"
+  # and "the string happened to come out empty".
+  z$main <- if (main) paste(tl, collapse = "\n") else NULL
+  if (main) graphics::title(main = z$main, cex.main = 1.1)
   # metafor::forest returns its resolved layout (xlim, alim, cex, ...) invisibly, and it is
   # carried out on the result for the same reason metafor bothers to return it: the label
   # column's width is a FRACTION of the device and the labels' width is in INCHES, so
@@ -2626,7 +2643,19 @@ tn_plot <- function(tn, file = NULL) {
   # for two results of one query -- which is exactly the reading TN_CAPTION has to spend a
   # sentence undoing. Layout outranks caption, so the panel is made to look like the
   # annotation it is.
-  tl <- .title_lines(tn$feature, "  |  tumour vs matched adjacent normal",
+  # The score type, through KIND_LABEL like every other drawn title. It was ABSENT here
+  # until step 171, and this was the only one of the three titles the tool draws that built
+  # its own feature string from the object instead of taking the caller's with_feature()
+  # one -- which is exactly why it never got the label: it did not pass through the place
+  # the label lives. The consequence was a defect in the app, not only in the manuscript:
+  # downloading this panel for VIPER activity and again for mRNA gave two files whose drawn
+  # titles were byte for byte identical, "YBX1  |  tumour vs matched adjacent normal", and
+  # only the FILENAME (tn_export_name, which does read $kind) told them apart. Figure S1
+  # puts the two arms one above the other, where a reader has nothing but the drawing.
+  # Indexing with [[ ]] rather than a lookup with a fallback: an unrecognised kind stops
+  # here rather than drawing a title that quietly names no score type at all.
+  tl <- .title_lines(sprintf("%s (%s)", tn$feature, KIND_LABEL[[tn$kind]]),
+                     "  |  tumour vs matched adjacent normal",
                      w = w_outer, cex = TN_TITLE_CEX)
   for (i in seq_along(tl))
     graphics::mtext(tl[i], 3, outer = TRUE, line = 1.9 - 1.05 * (i - 1L),
