@@ -237,7 +237,8 @@ SHOW_BROWSE <- FALSE
 KINDS <- c("viper", "expr", "immune", "cna")
 FEATURES_BY_CT <- setNames(lapply(CANCER_TYPES, function(ct)
   setNames(lapply(KINDS, .feature_choices, cohorts = cohorts_for(ct)), KINDS)), CANCER_TYPES)
-KIND_LABEL <- c(viper = "VIPER", expr = "expr", immune = "immune", cna = "CNA")
+# KIND_LABEL moved to R/plots.R on 2026-09-10 (step 170), so the manuscript scripts can
+# read the same constant the app writes. It is sourced above, at line 31.
 
 # Kinds offered as a top-level query. Two of the four KINDS are deliberately NOT offered,
 # for the same reason in two shapes: a kind belongs here only if the tool can say something

@@ -1074,8 +1074,30 @@ tau_choices <- function(cancer_type, endpoint = NULL) {
        selected = if (is.null(tau)) TAU_FULL else format(tau, trim = TRUE))
 }
 
+# How a score type is NAMED on a figure, in an export filename and in a downloaded PDF.
+#
+# It lives here rather than in app.R because a downloaded plot outlives the session that
+# made it: the PDF lands in someone's slide deck with no page around it, so its title is
+# the only provenance the file carries, and ms/print_assets.R has to be able to read the
+# same constant instead of re-implementing it. It DID re-implement it, and the two drifted:
+# until 2026-09-10 the app wrote "JUN (VIPER)" while the figures said "JUN (activity)".
+#
+# "VIPER TF activity" rather than either half of that. "(VIPER)" is exact and opaque to a
+# reader who has not met it; "(activity)" is guessable and they guess wrong -- the comment
+# on SCORE_HELP below records that "TF activity" is the one label on this page that gets
+# read as "the TF's expression", which is the confusion the whole panel exists to remove.
+# It also names no method, and SCENIC, DoRothEA, ChEA3 and footprinting all produce
+# something called TF activity without agreeing with each other. Both halves, then: the
+# reading and the method, and it is a short form of the radio the user actually clicked
+# ("TF activity inferred from VIPER"), so the output echoes the input.
+#
+# "mRNA", not "expr": `expr` is this code's name for the kind, not a word for a reader.
+KIND_LABEL <- c(viper = "VIPER TF activity", expr = "mRNA",
+                immune = "immune cell score", cna = "copy number")
+
 # Tag a survresult with the feature name so plot titles/axes read nicely:
-#   res <- with_feature(get_survival(get_feature("ESR1", kind="viper")), "ESR1 (VIPER)")
+#   res <- with_feature(get_survival(get_feature("ESR1", kind="viper")),
+#                       sprintf("ESR1 (%s)", KIND_LABEL[["viper"]]))
 with_feature <- function(res, feature) { attr(res, "feature") <- feature; res }
 
 # Tidy per-cohort + pooled HR/CI table for a survresult - the exact numbers behind the
