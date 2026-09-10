@@ -108,7 +108,7 @@ ABOUT_TERMS <- list(
     "copy number, protein and clinical measurements shown here all come from the open tier,",
     "which anyone can download from the Genomic Data Commons without an account. The",
     "individually identifying tiers, holding germline variants and SNP genotypes, sit behind a",
-    "separate authorisation and are not used here. Open TCGA data may be reused and passed on",
+    "separate authorization and are not used here. Open TCGA data may be reused and passed on",
     "freely. If a TCGA cohort carries a result into work you publish, the programme asks that",
     "you acknowledge the TCGA Research Network."),
   "METABRIC" = paste(
@@ -388,7 +388,7 @@ ABOUT_METHODS <- list(
                     "838-847. doi:10.1038/ng.3593")),
   list(name = "DESeq2", pkg = "DESeq2",
        role = paste("put the RNA sequencing cohorts on a comparable scale with its",
-                    "variance stabilising transform, before any score was computed from",
+                    "variance stabilizing transform, before any score was computed from",
                     "them. Every expression value shown for those cohorts passed through it."),
        cite = paste("Love MI, Huber W, Anders S (2014). Moderated estimation of fold change",
                     "and dispersion for RNA-seq data with DESeq2. Genome Biology 15, 550.",

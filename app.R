@@ -1370,7 +1370,7 @@ server <- function(input, output, session) {
     } else {
       tags$p(class = "note note-good note-tuck",
             HTML(info_note_html(
-              sprintf("CPTAC-BRCA proteomics: protein detected in %d/%d tumors (%.0f%%).",
+              sprintf("CPTAC-BRCA proteomics: protein detected in %d/%d tumours (%.0f%%).",
                       n, CPTAC_N, 100 * n / CPTAC_N), CPTAC_BADGE_INFO)))
     }
   })
@@ -1579,7 +1579,7 @@ server <- function(input, output, session) {
   output$dl_tn_ui <- renderUI({
     if (is.null(input$run) || input$run == 0) return(NULL)
     if (!isTRUE(tn_layout()$dl)) return(NULL)
-    downloadButton("dl_tn", "Tumor vs normal (PDF)", class = "btn-export")
+    downloadButton("dl_tn", "Tumour vs normal (PDF)", class = "btn-export")
   })
 
   # NAMED ENTIRELY FROM THE RESULT -- tn_export_name() reads feature, kind and cohorts off

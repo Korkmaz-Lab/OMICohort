@@ -611,6 +611,33 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
   if (!length(est)) character(0) else .forest_slab(est)
 }
 
+# The ANNOTATION column's strings, for the same reason .forest_slab() exists: the gutter on
+# the right has to be measured against what metafor will actually print there. The format is
+# metafor's own default under the arguments forest_plot() passes it -- transf = exp,
+# digits = 2, level = 95 -- and if that ever stops being true this measurement is taken
+# against the wrong string, so tests/test_forest_annot_fit.R measures the DRAWN gap rather
+# than trusting this format.
+.forest_annot <- function(yi, se) {
+  z <- stats::qnorm(0.975)
+  sprintf("%.2f [%.2f, %.2f]", exp(yi), exp(yi - z * se), exp(yi + z * se))
+}
+
+.panel_annot <- function(res) {
+  est <- Filter(function(x) isFALSE(x$skipped) && !is.null(x$logHR), res$per_cohort)
+  if (!length(est)) return(character(0))
+  yi <- vapply(est, `[[`, numeric(1), "logHR")
+  se <- vapply(est, `[[`, numeric(1), "se")
+  out <- .forest_annot(yi, se)
+  if (length(est) >= 2) {
+    # Same tryCatch as .forest_bounds(): a panel whose pool does not converge draws no
+    # diamond, so it needs no room for the diamond's annotation either.
+    m <- tryCatch(.forest_rma(yi, se^2), error = function(e) NULL)
+    if (!is.null(m))
+      out <- c(out, sprintf("%.2f [%.2f, %.2f]", exp(m$beta[1]), exp(m$ci.lb), exp(m$ci.ub)))
+  }
+  out
+}
+
 mq_forest_xrange <- function(panels) {
   b <- Filter(Negate(is.null), lapply(panels, function(e)
     if (is.null(e$res)) NULL else .forest_bounds(e$res)))
@@ -623,6 +650,8 @@ mq_forest_xrange <- function(panels) {
   # value stays the two-number range every existing caller and test passes around.
   attr(out, "run_slab") <- unlist(lapply(panels, function(e)
     if (is.null(e$res)) character(0) else .panel_slab(e$res)), use.names = FALSE)
+  attr(out, "run_annot") <- unlist(lapply(panels, function(e)
+    if (is.null(e$res)) character(0) else .panel_annot(e$res)), use.names = FALSE)
   out
 }
 
@@ -680,15 +709,51 @@ FOREST_GUTTER_IN <- 0.12
   # under forest_height_in()'s sizing, and tests/test_forest_slab_fit.R asserts that rather
   # than leaving it as an assumption -- if a panel ever shrinks its text, this measurement
   # would be taken at the wrong size and the test says so instead of the figure colliding.
-  rs <- attr(xr, "run_slab")
-  if (!is.null(rs) && length(rs)) {
-    w_in <- graphics::par("pin")[1]
-    l_in <- max(graphics::strwidth(rs, units = "inches", cex = z$cex))
-    cfrac <- (l_in + FOREST_GUTTER_IN) / w_in
-    if (is.finite(cfrac) && cfrac < 1) {
-      need <- (z$alim[1] - cfrac * z$xlim[2]) / (1 - cfrac)
-      if (is.finite(need) && need < z$xlim[1]) z$xlim[1] <- need
+  #
+  # THE SAME PROBLEM EXISTS ON THE RIGHT, and went unnoticed until Figure S2 was printed.
+  # metafor right-aligns the annotation column at xlim[2] and derives no clearance from
+  # alim[2], so a cohort whose interval reaches the end of the SHARED range has its whisker
+  # cap drawn hard against its own "2.06 [1.57, 2.72]". On a single-axis forest this cannot
+  # happen, because metafor sets alim from that panel's own data with room to spare; it is
+  # specific to a range one panel did not define. Seen at GSE43107_LGG in Figure S2 panel A.
+  #
+  # The two gutters are COUPLED: widening either bound stretches the same plot region over
+  # more user units, so a column measured in inches covers more of them and the other side
+  # can re-collide. Solved in CLOSED FORM rather than by nudging one side then the other,
+  # because that iteration only approaches the answer and an assertion on the result then
+  # has to be given a tolerance to pass, which is an assertion that has stopped checking.
+  #
+  # In pads: u = alim[1] - xlim[1], v = xlim[2] - alim[2], span = D + u + v with D the axis
+  # width. The columns need u >= cL*span and v >= cR*span. Neither pad may SHRINK, so the
+  # cases are: nothing to do; only the left binds; only the right binds; both bind. Each has
+  # one solution and the last one exists whenever the two columns together are narrower than
+  # the plot region. When they are not, no xlim can hold them and metafor's own choice is
+  # left alone, which is what the previous one-sided fit did too.
+  w_in <- graphics::par("pin")[1]
+  frac <- function(txt) {
+    if (is.null(txt) || !length(txt)) return(0)
+    f <- (max(graphics::strwidth(txt, units = "inches", cex = z$cex)) + FOREST_GUTTER_IN) / w_in
+    if (is.finite(f) && f > 0) f else 0
+  }
+  cL <- frac(attr(xr, "run_slab"))
+  cR <- frac(attr(xr, "run_annot"))
+  if ((cL > 0 || cR > 0) && cL + cR < 1) {
+    D  <- z$alim[2] - z$alim[1]
+    u0 <- z$alim[1] - z$xlim[1]
+    v0 <- z$xlim[2] - z$alim[2]
+    ok <- function(u, v) { sp <- D + u + v
+                           u >= cL * sp - 1e-12 && v >= cR * sp - 1e-12 && u >= u0 && v >= v0 }
+    uv <- if (ok(u0, v0)) c(u0, v0) else {
+      l <- c(cL * (D + v0) / (1 - cL), v0)                    # only the left binds
+      r <- c(u0, cR * (D + u0) / (1 - cR))                    # only the right binds
+      both <- c(cL, cR) * D / (1 - cL - cR)                   # both bind
+      if (ok(l[1], l[2])) l else if (ok(r[1], r[2])) r else both
     }
+    if (!ok(uv[1], uv[2]))
+      stop(sprintf(paste(".forest_axis(): no xlim holds both gutters (alim [%g, %g], label",
+                         "column %.3f and annotation column %.3f of the plot region)"),
+                   z$alim[1], z$alim[2], cL, cR))
+    z$xlim <- c(z$alim[1] - uv[1], z$alim[2] + uv[2])
   }
   graphics::par(op)
   if (!(z$alim[1] <= xr[1] && z$alim[2] >= xr[2]))
@@ -1713,7 +1778,7 @@ mgene_resolved_notes <- function(resolved) {
   out <- character(0)
   if (length(resolved$unknown))
     out <- c(out, warn = sprintf(
-      "Not recognised in this tissue's feature list, NOT analysed: %s.",
+      "Not recognized in this tissue's feature list, NOT analysed: %s.",
       paste(resolved$unknown, collapse = ", ")))
   # The cap is read back off the resolver's own output rather than from MGENE_MAX, so a
   # caller that passed a different max_n cannot be told the wrong limit.
@@ -2423,7 +2488,7 @@ TN_JITTER <- 0.21
 # tumor_normal() standardizes on the cohort's tumors for exactly that reason, so one unit
 # here is one unit there. Saying so on the axis is the difference between a reader
 # comparing this panel to the forest correctly and comparing it by eye to nothing.
-TN_YLAB <- "SD (tumor reference)"
+TN_YLAB <- "SD (tumour reference)"
 
 # Figure-title size, deliberately under forest_plot()'s 1.1. See the draw site for why.
 TN_TITLE_CEX <- 0.9
@@ -2458,7 +2523,7 @@ tn_plot <- function(tn, file = NULL) {
   stopifnot(inherits(tn, "tumor_normal"))
   est <- tn_estimable(tn)
   if (!length(est))
-    stop("tn_plot(): no cohort in this result has a paired tumor/normal comparison. ",
+    stop("tn_plot(): no cohort in this result has a paired tumour/normal comparison. ",
          "Call tn_estimable() first -- the panel should not be drawn at all.")
   s <- tn_size_in(length(est))
   opened <- .open_dev(file, width = s[["width"]], height = s[["height"]])
@@ -2502,7 +2567,7 @@ tn_plot <- function(tn, file = NULL) {
                      pch = 16, cex = 0.2, col = "#00000018")
     graphics::points(jitter(rep(2, length(x$normal)), amount = TN_JITTER), x$normal,
                      pch = 16, cex = 0.35, col = "#00000055")
-    graphics::axis(1, at = 1:2, labels = c("tumor", "normal"), tick = FALSE,
+    graphics::axis(1, at = 1:2, labels = c("tumour", "normal"), tick = FALSE,
                    line = -0.6, cex.axis = 0.95)
     graphics::mtext(sprintf("n=%d", x$n_tumor), 1, line = 1.4, at = 1, cex = 0.62, col = "grey40")
     graphics::mtext(sprintf("n=%d", x$n_normal), 1, line = 1.4, at = 2, cex = 0.62, col = "grey40")
@@ -2539,7 +2604,7 @@ tn_plot <- function(tn, file = NULL) {
   # for two results of one query -- which is exactly the reading TN_CAPTION has to spend a
   # sentence undoing. Layout outranks caption, so the panel is made to look like the
   # annotation it is.
-  tl <- .title_lines(tn$feature, "  |  tumor vs matched normal-adjacent",
+  tl <- .title_lines(tn$feature, "  |  tumour vs matched adjacent normal",
                      w = w_outer, cex = TN_TITLE_CEX)
   for (i in seq_along(tl))
     graphics::mtext(tl[i], 3, outer = TRUE, line = 1.9 - 1.05 * (i - 1L),
@@ -2578,7 +2643,7 @@ tn_export_name <- function(tn) {
   stopifnot(inherits(tn, "tumor_normal"))
   est <- tn_estimable(tn)
   if (!length(est))
-    stop("tn_export_name(): no cohort in this result has a paired tumor/normal comparison, ",
+    stop("tn_export_name(): no cohort in this result has a paired tumour/normal comparison, ",
          "so there is no figure to name. The download should not be offered at all.")
   sprintf("tumor_normal_%s_%s_%s.pdf", paste(.safe_name(est), collapse = "-"),
           .feature_tag(tn$feature), .safe_name(tn$kind))

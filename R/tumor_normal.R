@@ -190,8 +190,8 @@ tn_estimable <- function(tn) {
 
 # The sentence that keeps this panel from being read as an outcome result. Stated as a
 # constant, not typed into app.R, so a test can assert the app still shows it.
-TN_CAPTION <- paste("Tumor vs the same patient's own normal tissue. Context for the gene,",
-                    "not a survival result. One unit is one SD of this cohort's tumors, the",
+TN_CAPTION <- paste("Tumour vs the same patient's own normal tissue. Context for the gene,",
+                    "not a survival result. One unit is one SD of this cohort's tumours, the",
                     "same unit as the HR on the left.")
 
 # Why each cohort that CANNOT be drawn is missing, ONE sentence per reason rather than per
@@ -225,11 +225,11 @@ tn_notes <- function(tn) {
         "%s carries no normal-adjacent samples.",
         "%s carry no normal-adjacent samples."),
     say("no_pairs",
-        "%s has normal-adjacent samples but none from a patient who also has a tumor, so no paired comparison is possible.",
-        "%s have normal-adjacent samples but none from a patient who also has a tumor, so no paired comparison is possible."),
+        "%s has normal-adjacent samples but none from a patient who also has a tumour, so no paired comparison is possible.",
+        "%s have normal-adjacent samples but none from a patient who also has a tumour, so no paired comparison is possible."),
     say("unlabelled",
-        "%s does not label tumor vs normal (sample ids are not TCGA barcodes), so it cannot be compared here.",
-        "%s do not label tumor vs normal (sample ids are not TCGA barcodes), so they cannot be compared here."),
+        "%s does not label tumour vs normal (sample ids are not TCGA barcodes), so it cannot be compared here.",
+        "%s do not label tumour vs normal (sample ids are not TCGA barcodes), so they cannot be compared here."),
     say("absent",
         "%s does not carry this feature.",
         "%s do not carry this feature."))
