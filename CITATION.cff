@@ -30,7 +30,7 @@ repository-code: "https://github.com/Korkmaz-Lab/OMICohort"
 # reaches it from this record in one click. Declared once as ABOUT_SOFTWARE_DOI in R/about.R;
 # do not edit this line on its own.
 doi: "10.5281/zenodo.22344779"
-version: "0.1.3"
+version: "0.1.4"
 date-released: "2026-09-08"
 keywords:
   - survival analysis
