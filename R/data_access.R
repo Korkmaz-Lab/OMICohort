@@ -60,6 +60,30 @@ SURV_COHORTS <- cohorts_for("breast")
 
 .db_con <- function() dbConnect(RSQLite::SQLite(), file.path(PROC, "clinical.db"))
 
+# TCGA sample-type codes 10-19 are NORMAL tissue (11 = solid tissue normal, 10 = blood
+# derived normal, 12-14 buccal/EBV). A normal sample can never be a survival observation:
+# the score on it is the patient's normal tissue, and the follow-up beside it is the
+# patient's. .dedup_tcga() below PREFERS a tumour but does not REQUIRE one -- it ranks
+# stype == "01" first and then keeps the first row per patient, so a patient whose only
+# row is a normal keeps the normal. SIX rows corpus-wide were in that state: five in
+# TCGA_GBM, which carry no usable OS follow-up and so were inert, and TCGA-44-6144-11A in
+# TCGA_LUAD, which reached the fitted 505 of luad/OS as a censored observation scored on
+# normal lung (found 2026-09-10, step 172, while checking Figure 1's denominator).
+# Measured before removing it rather than assumed: the pooled luad/OS HR moves
+# 1.3401 -> 1.3397, so no published number changes; it is removed because a normal sample
+# in a patient survival list is wrong at any effect size, and because the five inert ones
+# were one clinical restage away from stopping being inert.
+#
+# Dropped here rather than by adding a rule to .dedup_tcga(): "which rows are eligible at
+# all" and "which of a patient's several rows to keep" are different questions, and one
+# function answering both is how the first went unasked.
+.drop_tcga_normals <- function(d) {
+  is_t <- grepl("^TCGA-", d$sample_id)
+  code <- suppressWarnings(as.integer(substr(d$sample_id, 14, 15)))
+  drop <- is_t & !is.na(code) & code >= 10L & code <= 19L
+  d[!drop, , drop = FALSE]
+}
+
 # TCGA patients can have 2-3 samples (multiple vials/portions). Counting a patient
 # more than once is pseudo-replication in a Cox/KM model, so for survival we keep ONE
 # sample per patient: primary tumor (type 01) preferred, then lowest vial letter.
@@ -70,14 +94,17 @@ SURV_COHORTS <- cohorts_for("breast")
 .dedup_tcga <- function(d) {
   is_t <- grepl("^TCGA-", d$sample_id)
   if (!any(is_t)) return(d)
-  t <- d[is_t, ]; rest <- d[!is_t, ]
+  # drop = FALSE: `d[i, ]` on a ONE-column data.frame returns a vector, and every line
+  # below then fails on `t$sample_id`. The app always passes eleven columns, so the
+  # trap was invisible until ms/bar called this with a frame of just sample_id.
+  t <- d[is_t, , drop = FALSE]; rest <- d[!is_t, , drop = FALSE]
   patient <- substr(t$sample_id, 1, 12)
   stype   <- substr(t$sample_id, 14, 15)
   vial    <- substr(t$sample_id, 16, 16)
   prio    <- ifelse(stype == "01", 0L, 1L)          # primary tumor first
   ord     <- order(patient, prio, vial)
-  t <- t[ord, ]
-  t <- t[!duplicated(patient[ord]), ]
+  t <- t[ord, , drop = FALSE]
+  t <- t[!duplicated(patient[ord]), , drop = FALSE]
   rbind(t, rest)
 }
 
@@ -97,6 +124,7 @@ get_clinical <- function(cohorts = SURV_COHORTS, endpoint = c("OS", "DFS", "DSS"
   d <- dbGetQuery(con, q)
   d$pam50[!is.na(d$pam50) & d$pam50 == ""] <- NA   # TCGA has "" placeholders
   d$stage[!is.na(d$stage) & d$stage == ""] <- NA   # empty stage -> NA (generic stratifier)
+  d <- .drop_tcga_normals(d)                       # normal tissue is not a patient row
   d <- .dedup_tcga(d)                              # one sample per TCGA patient
   d$time  <- switch(endpoint, OS = d$os_time,  DFS = d$dfs_time,  DSS = d$dss_time)
   d$event <- switch(endpoint, OS = d$os_event, DFS = d$dfs_event, DSS = d$dss_event)
