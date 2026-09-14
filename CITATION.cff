@@ -31,7 +31,7 @@ repository-code: "https://github.com/Korkmaz-Lab/OMICohort"
 # do not edit this line on its own.
 doi: "10.5281/zenodo.22344779"
 version: "0.1.5"
-date-released: "2026-09-08"
+date-released: "2026-09-14"
 keywords:
   - survival analysis
   - meta-analysis
