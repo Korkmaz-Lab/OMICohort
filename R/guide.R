@@ -88,6 +88,12 @@ GUIDE_FDR <- 0.05
   d  <- if (!is.null(dn)) scans[[dn]] else NULL
 
   list(ct = ct, label = cancer_label_of(ct), n_cohorts = length(co),
+       # n_cohorts counts what the REGISTRY holds; n_cohorts_ep counts what can actually
+       # enter the primary pooled estimate, which is fewer wherever a cohort records a
+       # different endpoint. They differ in five of the seven tissues, and printing the
+       # first beside a patient total derived from the second is what made the landing
+       # page's lead sentence count its two halves over different sets (step 178).
+       n_cohorts_ep = length(cohorts_for(ct, prim, registry = registry)),
        endpoints = eps, scanned_eps = .guide_scanned_eps(scans, prim),
        primary = prim, strata = strat,
        # horizon_for() returns NULL for a tissue that declares no tau (breast runs full
@@ -160,6 +166,10 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
   reg <- if (length(tfl)) range(lengths(tfl)) else c(NA_integer_, NA_integer_)
 
   list(n_cohorts = nrow(registry), n_types = length(cts), tissues = ti,
+       # The cohorts the seven primary scans are actually built from. `patients` and `events`
+       # below are summed over exactly these, so the page can now say 10,429 patients across
+       # 47 cohorts instead of implying they came from all 53.
+       n_cohorts_pooled = sum(vapply(ti, function(t) t$n_cohorts_ep, integer(1))),
        n_networks = length(nets), n_tf = tf,
        n_reg_min = reg[[1]], n_reg_max = reg[[2]],
        patients = sum(vapply(ti, function(t) if (is.na(t$n)) 0L else as.integer(t$n), integer(1))),
@@ -265,10 +275,17 @@ guide_html <- function(f) {
 # the duplication the navbar mark was cropped to avoid (see scripts/make_logo.py).
 '<div class="guide-hero">',
 '<h2 class="guide-h1"><img src="logo_full.png" class="guide-logo" alt="OMICohort"></h2>',
+# TWO COUNTS, AND THEY ARE OVER DIFFERENT SETS. This read "across N cohorts, covering P
+# patients" until step 178, which is a sentence that invites P/N: the patient total is summed
+# over the primary scans, and six of the 53 cohorts record a different endpoint and enter no
+# primary scan at all (SCANB's 3,273 patients among them). Both numbers were right and the
+# pairing was not. The second count is derived, never typed, for the same reason as the first.
 '<p class="guide-lead">A survival-analysis tool for asking whether a molecular score predicts ',
 'outcome across <b>', .g_int(f$n_cohorts), ' patient cohorts</b> in <b>', .g_int(f$n_types),
-' cancer types</b>, covering <b>', .g_int(f$patients), ' patients</b> and <b>', .g_int(f$events),
-' recorded events</b>. Each cohort is fitted on its own and the results combined by meta-analysis, never ',
+' cancer types</b>. The primary-endpoint scans pool <b>', .g_int(f$patients), ' patients</b> and <b>',
+.g_int(f$events), ' recorded events</b> across <b>', .g_int(f$n_cohorts_pooled),
+'</b> of those cohorts; the rest record a different endpoint and are queried on their own. ',
+'Each cohort is fitted on its own and the results combined by meta-analysis, never ',
 'merged into one pile. Unlike the public KM plotters, the score you query does not have to be a ',
 'gene&rsquo;s expression.</p>',
 '</div>',

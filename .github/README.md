@@ -48,8 +48,9 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22344779.svg)](https://doi.org/10.5281/zenodo.22344779)
 
 **Does this molecular score predict patient outcome?** OMICohort asks that question across
-**53 patient cohorts** in **7 cancer types**, covering **10,429 patients**
-and **4,226 recorded events**.
+**53 patient cohorts** in **7 cancer types**. The primary-endpoint scans pool
+**10,429 patients** and **4,226 recorded events** across **47** of those cohorts; the rest
+record a different endpoint and are queried on their own.
 
 It is a survival analysis tool for cancer genomics, built in the Korkmaz Lab at Koç
 University.
@@ -64,7 +65,7 @@ It operates unprivileged, requires no network access after startup, and provides
 Execute the following command in your terminal:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.4
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.5
 ```
 
 Once started, navigate to http://localhost:7654 in your web browser.
