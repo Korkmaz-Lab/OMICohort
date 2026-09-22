@@ -52,7 +52,7 @@
 **10,429 patients** and **4,226 recorded events** across **47** of those cohorts; the rest
 record a different endpoint and are queried on their own.
 
-It is a survival analysis tool for cancer genomics, built in the Korkmaz Lab at Koç
+It is a survival analysis tool for cancer genomics, built in in the [Korkmaz Lab](https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/) at Koç
 University.
 
 ## How to run it
