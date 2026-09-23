@@ -170,8 +170,8 @@ make attribution a licence condition rather than a courtesy: **DepMap Public 26Q
 4.0) and the **Broad GDAC Firehose** RPPA release (`doi:10.7908/C11G0KM9`). Both are credited
 there and in `CITATION.cff`.
 
-This repository holds the code. The data is deposited separately so that the two can be cited
-and versioned on their own terms.
+This repository holds the code. The derived matrices ship inside the container image rather
+than as a separate deposit, so one pull gives you the application and everything it opens.
 
 ## Citing
 
