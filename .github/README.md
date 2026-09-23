@@ -75,8 +75,8 @@ Once started, navigate to http://localhost:7654 in your web browser.
 
 A molecular marker that separates survival curves in one published cohort very often fails to
 do so in the next. Part of that is biology: cohorts differ in stage, treatment era, platform
-and subtype composition. Part of it is method, and two habits in particular make a result look
-stronger than it is.
+and subtype composition. Part of it is method, and two common practices in particular make a
+result look stronger than it is.
 
 **Splitting patients at the median.** Cutting a continuous score into "high" and "low" throws
 away most of the information in it and makes the answer depend on where the cut happened to
