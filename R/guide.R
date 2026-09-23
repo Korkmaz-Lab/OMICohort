@@ -280,7 +280,7 @@ guide_html <- function(f) {
 # over the primary scans, and six of the 53 cohorts record a different endpoint and enter no
 # primary scan at all (SCANB's 3,273 patients among them). Both numbers were right and the
 # pairing was not. The second count is derived, never typed, for the same reason as the first.
-'<p class="guide-lead">A survival-analysis tool for asking whether a molecular score predicts ',
+'<p class="guide-lead">A survival-analysis tool for asking whether a score predicts ',
 'outcome across <b>', .g_int(f$n_cohorts), ' patient cohorts</b> in <b>', .g_int(f$n_types),
 ' cancer types</b>. The primary-endpoint scans pool <b>', .g_int(f$patients), ' patients</b> and <b>',
 .g_int(f$events), ' recorded events</b> across <b>', .g_int(f$n_cohorts_pooled),

@@ -47,7 +47,7 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22344779.svg)](https://doi.org/10.5281/zenodo.22344779)
 
-**Does this molecular score predict patient outcome?** OMICohort asks that question across
+**Does this score predict patient outcome?** OMICohort asks that question across
 **53 patient cohorts** in **7 cancer types**. The primary-endpoint scans pool
 **10,429 patients** and **4,226 recorded events** across **47** of those cohorts; the rest
 record a different endpoint and are queried on their own.
@@ -73,14 +73,14 @@ Once started, navigate to http://localhost:7654 in your web browser.
 
 ## The problem it is built around
 
-A molecular marker that separates survival curves in one published cohort very often fails to
+A gene whose expression separates survival curves in one published cohort very often fails to
 do so in the next. Part of that is biology: cohorts differ in stage, treatment era, platform
 and subtype composition. Part of it is method, and two common practices in particular make a
 result look stronger than it is.
 
 **Splitting patients at the median.** Cutting a continuous score into "high" and "low" throws
 away most of the information in it and makes the answer depend on where the cut happened to
-fall. A marker can look decisive in one cohort and disappear in another simply because the
+fall. A gene can look decisive in one cohort and disappear in another simply because the
 median moved.
 
 **Merging cohorts into one pile.** Pooling patients from several studies and fitting a single
@@ -155,7 +155,7 @@ and then holds up in validation is a stronger claim than one that clears FDR onc
 ## What a result does not mean
 
 An association with survival is not a mechanism, a driver, or a target. These cohorts are
-observational, treatment is uncontrolled, and a marker can track outcome because it tracks
+observational, treatment is uncontrolled, and a score can track outcome because it tracks
 stage or subtype rather than anything causal. The tool is built to make an association honest
 and reproducible, not to tell you what it means.
 

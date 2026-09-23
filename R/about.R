@@ -158,11 +158,21 @@ ABOUT_TERMS <- list(
 # blank slot or a placeholder, because a visible placeholder on a live site is worse than an
 # absent section.
 #
-# SPELLING IS AS SUPPLIED for the PEOPLE, and that is a rule and not an oversight. These names
-# were given by the user on 2026-08-30 in plain ASCII. Turkish orthography would write
-# Gozde/Karagoz with diacritics, and this file does NOT apply them: guessing at the spelling of
-# a person's own name is inventing, in the one section where inventing is worst. Changing them
-# is a one-line edit here and the page follows.
+# SPELLING IS AS SUPPLIED for the PEOPLE, and that is a rule and not an oversight. Both names
+# below carry their Turkish diacritics, and they carry them because that is how they were
+# supplied, not because this file applied them. It applies none. The rule is about direction,
+# not about which characters end up on the page: a spelling arrives from the person it belongs
+# to and is set exactly, and is never regularized, never transliterated and never guessed at,
+# in the one section where inventing is worst. Changing one is a one-line edit here and the
+# page follows.
+#
+# CORRECTED 2026-09-23 (step 206). This comment previously said these names were supplied in
+# plain ASCII and that the file declined to add diacritics to them. The data twelve lines below
+# has read Gözde Korkmaz and Arda Burak Karagöz since bea98af, the first commit in the
+# repository, and the ASCII forms have never appeared here at all. The rule was right and the
+# description of the file was wrong, which is worse than it sounds: the note was read as
+# evidence about the data during this step and produced a false report until the data itself
+# was checked.
 #
 # The INSTITUTION is no longer in that category, and stopped being on 2026-08-30 (step 118).
 # Its own wordmark now ships in this repository -- www/logo-renkli.png reads "KOC UNIVERSITESI"
@@ -576,7 +586,7 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 # The lead says what is NOT here as well as what is. Since step 118 the method left this page
 # for the Guide, and a reader who arrives on About looking for it needs to be sent one click
 # away rather than concluding the tool does not document it.
-'<p class="guide-lead">A survival-analysis tool for molecular scores across <b>',
+'<p class="guide-lead">A survival-analysis tool for cancer genomics across <b>',
 .g_int(f$n_cohorts), ' public cohorts</b> in <b>', .g_int(f$n_types),
 ' cancer types</b>. This page records who built it, how to cite it, and the terms the code ',
 'and the data carry. <b>How the numbers are produced</b> is on the Guide tab.</p>',

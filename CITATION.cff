@@ -12,7 +12,7 @@ cff-version: 1.2.0
 message: "If you use OMICohort, please cite it using these metadata."
 title: "OMICohort"
 abstract: >-
-  A survival-analysis tool for asking whether a molecular score predicts outcome
+  A survival-analysis tool for asking whether a score predicts outcome
   across 53 patient cohorts in 7 cancer types. Each cohort is fitted on its own
   with a continuous per-standard-deviation Cox model and the results are combined
   by random-effects meta-analysis, never merged into a single pool. The score
