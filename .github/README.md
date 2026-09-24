@@ -187,5 +187,5 @@ covers the patient data, and this project cannot grant rights it was not given.
 ## People
 
 Built in the [Korkmaz Lab](https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/)
-at Koç University: Assist. Prof. Gözde Korkmaz (principal investigator) and Arda Burak Karagöz
+at Koç University: Assist. Prof. Gozde Korkmaz (principal investigator) and Arda Burak Karagöz
 (development and analysis).

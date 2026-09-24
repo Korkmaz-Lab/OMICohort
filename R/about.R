@@ -158,9 +158,9 @@ ABOUT_TERMS <- list(
 # blank slot or a placeholder, because a visible placeholder on a live site is worse than an
 # absent section.
 #
-# SPELLING IS AS SUPPLIED for the PEOPLE, and that is a rule and not an oversight. Both names
-# below carry their Turkish diacritics, and they carry them because that is how they were
-# supplied, not because this file applied them. It applies none. The rule is about direction,
+# SPELLING IS AS SUPPLIED for the PEOPLE, and that is a rule and not an oversight. Whatever
+# the names below carry, they carry it because that is how they were supplied, not because
+# this file applied it or withheld it. It applies nothing either way. The rule is about direction,
 # not about which characters end up on the page: a spelling arrives from the person it belongs
 # to and is set exactly, and is never regularized, never transliterated and never guessed at,
 # in the one section where inventing is worst. Changing one is a one-line edit here and the
@@ -168,11 +168,19 @@ ABOUT_TERMS <- list(
 #
 # CORRECTED 2026-09-23 (step 206). This comment previously said these names were supplied in
 # plain ASCII and that the file declined to add diacritics to them. The data twelve lines below
-# has read Gözde Korkmaz and Arda Burak Karagöz since bea98af, the first commit in the
-# repository, and the ASCII forms have never appeared here at all. The rule was right and the
+# had read Gözde Korkmaz and Arda Burak Karagöz from bea98af, the first commit in the
+# repository, until step 212 changed the first of the two, and the ASCII forms had never
+# appeared here at all. The rule was right and the
 # description of the file was wrong, which is worse than it sounds: the note was read as
 # evidence about the data during this step and produced a false report until the data itself
 # was checked.
+#
+# CHANGED 2026-09-24 (step 212). The PI's given name now reads Gozde without the diaeresis,
+# which is what the author wrote and confirmed on that date. This REVERSES the request of
+# 2026-09-23 recorded directly above, and the reversal is the rule working rather than an
+# exception to it: the spelling is the person's to set and it was set again. Note that the two
+# names below now differ, Gozde without diacritics beside Karagöz with one. That is not an
+# inconsistency to tidy up. Tidying it would be exactly the regularizing this rule forbids.
 #
 # The INSTITUTION is no longer in that category, and stopped being on 2026-08-30 (step 118).
 # Its own wordmark now ships in this repository -- www/logo-renkli.png reads "KOC UNIVERSITESI"
@@ -203,7 +211,7 @@ ABOUT_PEOPLE <- list(
     "Lab on GitHub" = "https://github.com/Korkmaz-Lab"),
   contact     = "",                # e.g. "someone@university.edu"
   members     = list(
-    list(name = "Assist. Prof. Gözde Korkmaz", role = "Principal Investigator"),
+    list(name = "Assist. Prof. Gozde Korkmaz", role = "Principal Investigator"),
     list(name = "Arda Burak Karagöz",             role = "Development & Analysis")
   )
 )
