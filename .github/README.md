@@ -66,17 +66,10 @@ It operates unprivileged, requires no network access after startup, and provides
 Execute the following command in your terminal:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.6
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:latest
 ```
 
 Once started, navigate to http://localhost:7654 in your web browser.
-
-That tag is pinned to one release and is the one to quote in a methods section. To run whichever
-release is newest instead, with `docker pull` first if you have run it before:
-
-```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:latest
-```
 
 ## The problem it is built around
 
@@ -190,6 +183,12 @@ one column rather than loading a whole matrix.
 
 There is no paper yet. Until there is, cite the software: GitHub's *Cite this repository*
 button reads `CITATION.cff`.
+
+A result that has to be reproducible later should name a pinned version rather than `latest`:
+
+```bash
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.6
+```
 
 ## Licence
 
