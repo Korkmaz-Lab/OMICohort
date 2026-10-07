@@ -71,14 +71,12 @@ docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.6
 
 Once started, navigate to http://localhost:7654 in your web browser.
 
-That tag is pinned to one release, and it is the one to quote in a methods section or anywhere
-a result has to be reproducible later. To run whichever release is newest instead:
+That tag is pinned to one release and is the one to quote in a methods section. To run whichever
+release is newest instead, with `docker pull` first if you have run it before:
 
 ```bash
 docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:latest
 ```
-
-Docker caches images by tag, so if you have run `latest` before, run `docker pull ghcr.io/korkmaz-lab/omicohort:latest` first to pick up the current one.
 
 ## The problem it is built around
 
