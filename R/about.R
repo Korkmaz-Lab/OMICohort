@@ -210,18 +210,87 @@ ABOUT_PEOPLE <- list(
     "Lab website"  = "https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/",
     "Lab on GitHub" = "https://github.com/Korkmaz-Lab"),
   contact     = "",                # e.g. "someone@university.edu"
+  # `affil` INDEXES ABOUT_AFFILIATIONS below, it does not repeat it. Closing board item (y)
+  # at step 226 meant giving each author the affiliations the manuscripts give them, and the
+  # manuscripts give them DIFFERENT ones: Karagöz carries 1 and 2, Korkmaz 2 and 3. A string
+  # per member would have put "Koç University Research Center for Translational Medicine
+  # (KUTTAM), Istanbul, Turkey" in the file twice, which is how one of two copies gets
+  # corrected. The order within a member follows the manuscripts' numbering.
   members     = list(
-    list(name = "Assist. Prof. Gozde Korkmaz", role = "Principal Investigator"),
-    list(name = "Arda Burak Karagöz",             role = "Development & Analysis")
+    list(name = "Assist. Prof. Gozde Korkmaz", role = "Principal Investigator",
+         affil = c(2L, 3L)),
+    list(name = "Arda Burak Karagöz",             role = "Development & Analysis",
+         affil = c(1L, 2L))
   )
 )
 
-# The one place the three identities are joined into a single line. CITATION.cff quotes it as
-# each author's affiliation, the Zenodo creator records take it as theirs, and the People
-# paragraph renders it: three consumers, one derivation, so a fourth name can never be added to
-# the page and forgotten in the deposit. tests/test_release_files.R asserts the CFF still
-# carries what this returns.
-about_affiliation <- function(p = ABOUT_PEOPLE) {
+# THE THREE AFFILIATIONS THE MANUSCRIPTS CARRY, in their numbered order, added at step 226.
+#
+# Board item (y) opened at step 213 and sat open because it was a question rather than a
+# defect: `about_affiliation()` described the LAB that built the software, the manuscripts
+# describe where their AUTHORS work, and the two are not obliged to agree. The author settled
+# it on 2026-10-06 in the manuscripts' favour. The reason it is the right call is not that one
+# string was wrong: it is that a reader who finds this tool through the preprint and then
+# cites it from `CITATION.cff` would have been handed a different affiliation by each, with
+# nothing on either surface admitting the other exists.
+#
+# WHAT DID NOT CHANGE, and deliberately. The About page still says "Built in the Korkmaz Lab,
+# KUTTAM, Koç University", because that sentence is about the lab and is still true; a page
+# introducing a tool is not an author list. The lab line therefore survives as the no-argument
+# form below, and both forms are asserted, so neither can drift from what it describes.
+#
+# KUTTAM IS EXPANDED HERE and is not expanded on the page. Those are different surfaces with
+# different readers: the page prints the mark with the full name under it twelve lines later,
+# so expanding it in the prose would say it twice on one screen, while a citation record has
+# no mark beside it and an unexpanded acronym in an affiliation field is not resolvable.
+# ONE WORD DIFFERS FROM THE MANUSCRIPTS, and it is deliberate. They print "Research Center OF
+# Translational Medicine" in all three places (preprint, supplementary, congress abstract). The
+# institution's own mark prints "KOÇ UNIVERSITY RESEARCH CENTER FOR TRANSLATIONAL MEDICINE",
+# read off www/kuttam-1.png, which is also what this file's own `alt` text has said since the
+# mark was added and what tests/test_reader_text_spelling.R already lists as the proper name.
+# So the project held both forms before step 226, the mark saying one and the manuscripts the
+# other, and nothing compared them until the affiliations were declared here and the spelling
+# test fired on the acronym's expansion.
+#
+# "for" wins HERE because of what this list feeds: CITATION.cff and the Zenodo creator records,
+# which are permanent, machine-read, and the two places a misnamed institution would be copied
+# onward from. A frozen PDF stating a name slightly wrong is a thing in one document; the same
+# error in a deposit's creator metadata is the version other systems ingest.
+#
+# NOT PROPAGATED BACKWARDS. The manuscripts are frozen and the author wrote that front matter
+# by hand; this file does not get to edit them. manuscript/biorxiv_form.md records the
+# divergence so it is a decision at submission rather than a surprise.
+ABOUT_AFFILIATIONS <- c(
+  "Graduate School of Health Sciences, Koç University, Istanbul, Turkey",
+  "Koç University Research Center for Translational Medicine (KUTTAM), Istanbul, Turkey",
+  "School of Medicine, Koç University, Istanbul, Turkey")
+
+# TWO QUESTIONS, ONE FUNCTION, because they are the same question asked of different subjects:
+# where does this work come from. Called with no argument it answers for the ORGANISATION, lab
+# inside centre inside university, which is the identity the About page introduces the tool
+# with. Called with a member it answers for that AUTHOR, from ABOUT_AFFILIATIONS, which is what
+# the manuscripts print beside their names and what a citation record has to agree with.
+#
+# THE COMMENT THAT STOOD HERE UNTIL STEP 226 NAMED THREE CONSUMERS AND THERE WERE TWO. It said
+# "the People paragraph renders it", and the People paragraph does not call this: `.about_people()`
+# rebuilds the same sentence from the same three fields on its own, so the two have always been
+# separate code paths that happen to agree. That is worth knowing rather than quietly fixing,
+# because the comment's claim was the reason to believe the page could not drift from the
+# deposit, and it was not true. The guard is the test, not this paragraph: section 4 of
+# tests/test_release_files.R asserts the CFF carries what BOTH forms return.
+about_affiliation <- function(m = NULL, p = ABOUT_PEOPLE, a = ABOUT_AFFILIATIONS) {
+  if (!is.null(m)) {
+    if (is.null(m$affil) || !length(m$affil))
+      stop("ABOUT_PEOPLE member '", m$name, "' declares no affiliation. Every author on the ",
+           "manuscripts carries at least one, and a creator record with an empty affiliation ",
+           "field is published, not caught.")
+    if (any(m$affil < 1L | m$affil > length(a)))
+      stop("ABOUT_PEOPLE member '", m$name, "' indexes affiliation ",
+           paste(setdiff(m$affil, seq_along(a)), collapse = ", "), " and ABOUT_AFFILIATIONS ",
+           "declares ", length(a), ". An out-of-range index yields NA, which would reach ",
+           "CITATION.cff as the literal text 'NA'.")
+    return(paste(a[m$affil], collapse = "; "))
+  }
   parts <- c(p$lab, p$center, p$institution)
   paste(parts[!vapply(parts, is.null, logical(1)) & nzchar(unlist(parts))], collapse = ", ")
 }
@@ -319,7 +388,7 @@ ABOUT_SECTIONS <- c("How to cite", "People", "Licence and data terms")
 # unchanged; minor when the app gains or loses a capability; and if a released estimate ever
 # MOVES, that is not a version bump on its own, it is a BUILD_LOG entry saying which anchors
 # moved and why, with the version following from that.
-ABOUT_VERSION <- "0.1.5"
+ABOUT_VERSION <- "0.1.6"
 
 # No paper yet (confirmed 2026-08-30). While `doi` is empty the page renders the "not yet
 # published" form; filling `doi` in switches it to a formal citation block and nothing else
@@ -633,6 +702,27 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 'terms are listed for each source.</li>',
 '</ul>',
 
+# ---- item 9, the three disclosures this page had never made -------------------------------
+# NONE OF THIS EXISTED ANYWHERE IN THE APP before step 227, which was checked rather than
+# assumed: neither page carried a research-use statement, a re-identification clause, or a
+# sentence telling a reader what to cite when they publish. The licence bullets above say what
+# this project grants; the credit list below says who produced each cohort. Between those two
+# there was nothing saying what the tool is FOR, and a survival curve with a p value beside it
+# is exactly the kind of output a reader can mistake for a clinical statement.
+'<h4 class="guide-h3">What this tool is for, and what it is not</h4>',
+'<p>OMICohort is a <b>research instrument</b>. Nothing on these pages is a diagnosis, a ',
+'prognosis for any individual, or a basis for a clinical decision. Every number here is an ',
+'association measured across groups of patients in observational studies, where treatment was ',
+'not controlled and the cohorts were assembled to answer other questions.</p>',
+'<p>Every cohort comes from a release its producers made publicly available, and <b>no ',
+'controlled-access data is redistributed</b> through this tool. Nothing here identifies a ',
+'participant, no attempt is made to link a sample back to a person, and the tool offers no ',
+'route by which that could be done.</p>',
+'<p>If you publish from it, cite the cohorts you used, and the reference data below whose ',
+'licences make attribution a condition rather than a courtesy. The licences on the code and on ',
+'these pages do not extend to any of that, and this project cannot grant rights it was not ',
+'given.</p>',
+
 '<h4 class="guide-h3">Data sources and their terms</h4>',
 # Stated POSITIVELY and only positively, which is a constraint and not a style note: this
 # sentence is held by tests/test_about_derived.R section 7b, which reads the rendered page for
@@ -643,8 +733,8 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 # the reader as well, which is the step-121 fault: see the audience rule above ABOUT_TERMS.)
 '<p>Every cohort below is <b>publicly available</b>, and each one was produced by a study ',
 'that should be cited in its own right. OMICohort shows <b>summary statistics only</b> ',
-'(hazard ratios, confidence intervals and survival curves) and never displays ',
-'or distributes individual patient records. The list is exactly the set of cohorts this ',
+'(hazard ratios, confidence intervals and survival curves) and <b>no patient-level ',
+'records are shown or downloadable</b>. The list is exactly the set of cohorts this ',
 'tool analyses.</p>',
 # ADDED 2026-09-04 (step 141), answering the question the paragraph above leaves open. The
 # page said the cohorts are public and asked the reader to cite them; it never said what form
@@ -656,6 +746,25 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 '<b>de-identified</b> measurements of tumours, with no genotypes and no raw sequence. Where a ',
 'release states a licence, the entry below names it and says what it lets you do, so that a ',
 'cohort here can be reused on the same terms it reached us on.</p>',
+
+# THE NORMAL TISSUE, added at step 227 because the page had never mentioned it. The Guide named
+# "tumour-vs-normal context" once, in its list of tabs, and returned to it nowhere; this page,
+# whose job is to say where the data came from and on whose terms, did not say it existed. A
+# reader who meets the panel in the app and then comes here to check its provenance found a
+# cohort list that appears to be entirely tumours.
+#
+# THE CLAIM IS CHECKABLE, not reassuring boilerplate: R/tumor_normal.R takes the normals out of
+# the same per-cohort files the survival path reads, matched to the tumour by the patient's own
+# barcode. There is no separate normal cohort anywhere in this project to confuse it with.
+'<p>The <b>tumour versus normal</b> panel adds no new source. Where a cohort includes ',
+'normal-adjacent tissue, that tissue was collected from the same patients as the tumours and ',
+'released by the same study, and it reaches this tool inside the same per-cohort files as the ',
+'tumour measurements beside it. It is the only normal tissue OMICohort holds. Nothing here was ',
+'drawn from a separate reference set of healthy donors, and no cohort contributes normal ',
+'tissue to another cohort&rsquo;s comparison. Because it arrives as part of the cohort, it is ',
+'covered by that cohort&rsquo;s entry below rather than by terms of its own, and a cohort ',
+'published without normal-adjacent samples does not offer the panel at all.</p>',
+
 .about_sources(f),
 
 # ---- reference data --------------------------------------------------------------------

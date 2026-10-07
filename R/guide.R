@@ -236,8 +236,8 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
     'are always analysed one at a time and then combined, never merged into a single pool.</li>',
     '<li><b>Endpoints</b>: which survival endpoints were scanned across all regulators. The ',
     '<b>primary</b> one is in bold; it is the endpoint the figures in this row describe. An ',
-    'endpoint appears here only if it was actually scanned, so a tissue whose third endpoint ',
-    'never reached the minimum pool size does not list it.</li>',
+    'endpoint appears here only if it was actually scanned, so an endpoint that never reached ',
+    'the minimum pool size is not listed.</li>',
     '<li><b>Stratified by</b>: a clinical variable each cohort&rsquo;s model was given its own ',
     'baseline risk for, so that patients are compared within a group rather than across ',
     'groups. &ldquo;none&rdquo; means no stratifier was declared for that tissue.</li>',
@@ -250,13 +250,28 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
     '<li><b>Pass q &lt; ', format(GUIDE_FDR), '</b>: how many regulators cleared that ',
     'threshold in the scan for this row. The q value is a Benjamini-Hochberg false discovery ',
     'rate, which is a statement about the whole list rather than about any one regulator: of ',
-    'the regulators called here, roughly ', format(100 * GUIDE_FDR), ' in every hundred are ',
+    'the regulators called here, at most about ', format(100 * GUIDE_FDR), ' in every hundred ',
+    'are ',
     'expected to be there by chance. Where a stratifier is declared, the stratified scan is ',
     'the one counted, since that is the estimate the app reports.</li>',
-    '<li><b>Replicated</b>: regulators found in one set of cohorts and then tested in a ',
-    'separate set that took no part in finding them. It reads as <i>held up of found</i>. ',
-    'The zeros are real results and not missing data: in those tissues nothing survived the ',
-    'second look.</li>',
+    # TWO BULLETS, AND THE SECOND ONE IS THE REASON. Until step 231 this was one bullet
+    # ending "in those tissues nothing survived the second look", which says the validation
+    # test ran and everything failed it. For a 0 of 0 that is false: nothing REACHED the test.
+    # The correct account was already on the page, under "What a hit does not mean" below, but
+    # a reader meets this table first, so the wrong sentence was the one being read. Do not
+    # collapse these back into one bullet, and do not name the tissues that currently read
+    # 0 of 0: any of them stops being a zero the moment a discovery arm clears, and a named
+    # tissue here would then be a typed figure that disagrees with the table above it.
+    '<li><b>Replicated</b>: the strictest column here. Each tissue&rsquo;s cohorts were split ',
+    'in two before any result was read. One set is used to <b>find</b> candidate regulators; ',
+    'the other, which took no part in finding them, is then used to <b>test</b> them. The ',
+    'column reads <i>held up of found</i>, so the second number is how many went into that ',
+    'test and the first is how many survived it.</li>',
+    '<li><b>A zero there is not a failed test.</b> <b>0 of 0</b> means the finding step ',
+    'returned nothing in that tissue, so nothing reached the test at all. It is not evidence ',
+    'against the <b>Pass q</b> figure beside it, which is the full scan over every cohort: a ',
+    'tissue can pass many regulators there and still read 0 of 0 here, because the finding set ',
+    'is a fraction of the cohorts and carries a fraction of the events.</li>',
     '</ul>',
     '<p class="guide-fine">Every figure in this table is computed when the app starts, from ',
     'the same registry and result tables the analysis itself was run on. None of it is typed ',
@@ -280,11 +295,23 @@ guide_html <- function(f) {
 # over the primary scans, and six of the 53 cohorts record a different endpoint and enter no
 # primary scan at all (SCANB's 3,273 patients among them). Both numbers were right and the
 # pairing was not. The second count is derived, never typed, for the same reason as the first.
-'<p class="guide-lead">A survival-analysis tool for asking whether a score predicts ',
+#
+# Step 178 kept the counts apart by splitting the sentence in two. Step 229 put them back in
+# one sentence at the author's request, which is safe only because the patient and event
+# totals now sit inside the clause about n_cohorts_pooled rather than beside n_cohorts, so
+# the number a reader would divide by is the number those totals were summed over. Do not
+# move that parenthesis back out to the head of the sentence.
+#
+# EVERY FIGURE HERE STAYS INTERPOLATED, and step 229 is the third demonstration of why. The
+# author's draft of this sentence typed 10,430 patients and 4,227 events, which is the
+# pre-step-178 corpus; the same stale pair had already had to be corrected once in the GitHub
+# repository description (board item (t), 2026-09-23). A typed figure here goes stale in
+# silence. test_guide_derived.R is what stops it.
+'<p class="guide-lead">A survival-analysis tool for asking whether a molecular score predicts ',
 'outcome across <b>', .g_int(f$n_cohorts), ' patient cohorts</b> in <b>', .g_int(f$n_types),
-' cancer types</b>. The primary-endpoint scans pool <b>', .g_int(f$patients), ' patients</b> and <b>',
-.g_int(f$events), ' recorded events</b> across <b>', .g_int(f$n_cohorts_pooled),
-'</b> of those cohorts; the rest record a different endpoint and are queried on their own. ',
+' cancer types</b>, of which <b>', .g_int(f$n_cohorts_pooled), '</b> enter the ',
+'primary-endpoint analyses (<b>', .g_int(f$patients), ' patients</b> and <b>', .g_int(f$events),
+' recorded events</b>); the rest record a different endpoint and are queried on their own. ',
 'Each cohort is fitted on its own and the results combined by meta-analysis, never ',
 'merged into one pile. Unlike the public KM plotters, the score you query does not have to be a ',
 'gene&rsquo;s expression.</p>',
@@ -334,8 +361,18 @@ guide_html <- function(f) {
 '<p>This is the part of the tool with no public equivalent: <b>', .g_int(f$n_networks),
 ' tissue-specific ARACNe networks</b> covering <b>', .g_int(f$n_tf), ' transcription factors</b>, ',
 'each TF&rsquo;s activity tested against survival in every cohort that carries the endpoint, then ',
-'pooled. <b>', .g_int(f$n_types), ' cancer types were scanned genome-wide across ',
-'the full regulator list</b>, with a discovery set and a held-out validation set.</p>',
+'pooled. There are more networks than cancer types because <b>breast carries two</b>, one ',
+'inferred from TCGA tumours and one from SCAN-B, each used with the cohort it came from.</p>',
+
+'<p>Doing that for every regulator in a network at once is what this page calls a <b>scan</b>. ',
+'One scan covers one cancer type and one endpoint: every TF in that tissue&rsquo;s network is ',
+'tested in every cohort recording that endpoint, each cohort fitted on its own, the fits ',
+'pooled, and the pooled p values then corrected together across the whole regulator list. ',
+'Correcting them together is what makes the number of hits a statement about the list rather ',
+'than about any one TF, and it is why a scan reports far fewer regulators than it tested. ',
+'All <b>', .g_int(f$n_types), ' cancer types were scanned genome-wide across the full ',
+'regulator list</b>, and each was also split into a discovery set and a held-out validation ',
+'set.</p>',
 
 # ---------------------------------------------------------------- the data
 '<h3 class="guide-h2">The data</h3>',
@@ -350,13 +387,16 @@ guide_html <- function(f) {
 '<h4 class="guide-h3">The hazard ratio</h4>',
 '<p>Every result is a <b>hazard ratio per one standard deviation</b> of the score, within that ',
 'cohort. HR&nbsp;=&nbsp;1.25 means: patients one SD higher on this score have 25% higher ',
-'instantaneous risk of the event at any given moment, compared with otherwise-similar patients.</p>',
+'instantaneous risk of the event at any given moment.</p>',
 '<ul class="guide-list">',
 '<li><b>HR &gt; 1</b>: higher score, worse outcome. <b>HR &lt; 1</b>: protective.</li>',
 '<li>It is <b>not</b> a fold change, and not "25% more patients died". It is a rate ratio.</li>',
-'<li><b>Read the confidence interval, not the point estimate.</b> HR 1.9 [0.8, 2.4] and ',
-'HR 1.2 [1.15, 1.25] are not "1.9 is stronger" but the first is compatible with no effect ',
-'and the second is not.</li>',
+'<li><b>Read the confidence interval, not the point estimate.</b> HR 1.3 [0.9, 1.7] and ',
+'HR 1.2 [1.15, 1.25] do not mean &ldquo;1.3 is stronger&rdquo;. An HR of 1 means no effect at ',
+'all, and the interval is the range of values the data are consistent with, so the question is ',
+'whether 1 falls inside the interval. The first interval is between 0.9 and 1.7, which ',
+'contains 1, so no effect is one of the possibilities. The second interval is between 1.15 ',
+'and 1.25, which is entirely above 1, so no effect is not a possibility here.</li>',
 '<li>Per-SD units are what make cohorts comparable. A raw score unit means something different ',
 'in each cohort; an SD does not.</li>',
 '</ul>',
@@ -418,9 +458,10 @@ guide_html <- function(f) {
 '<li><b>Hit counts are inflated by correlation.</b> Regulon activities are strongly correlated ',
 'with one another, so "N regulators clear FDR" is not N independent findings. Where the tool ',
 'reports a replicated set, read its block structure: correlated programs travel together.</li>',
-'<li><b>A zero in the replicated column is usually power, not absence.</b> The split fixes which ',
-'cohorts discover and which validate, so a discovery arm with few events finds little regardless ',
-'of what is there.</li>',
+'<li><b>A zero in the replicated column is usually power, not absence.</b> ',
+'&ldquo;0 of 0&rdquo; means nothing reached validation at all; &ldquo;0 of N&rdquo; would mean ',
+'N discoveries were tested and none held up. The split fixes which cohorts discover and which ',
+'validate, so a discovery arm with few events finds little regardless of what is there.</li>',
 '<li><b>Proportional hazards is an assumption and it is tested.</b> Each fit is checked, and the ',
 'panel warns when a cohort fails; the scans carry the count. A failed check means the single HR ',
 'is a time-average of an effect that changed during follow-up, not that the effect is ',
@@ -476,6 +517,21 @@ guide_html <- function(f) {
 'is why nothing here can quietly disagree with what was actually analysed. If a cohort were ',
 'added or an endpoint dropped, this page would say so on the next start without anyone ',
 'editing it.</p>',
+# THE STORAGE LAYERS, added at step 225. Until then this project stated nowhere a reader can
+# reach that the clinical fields live in SQLite and the matrices in HDF5; everything that
+# documented it was gitignored. Two surfaces reach anybody, this paragraph and the public
+# README's "The data", and both now carry the same two sentences.
+#
+# NEITHER FORMAT IS NAMED WITH A FILE. tests/helper_no_paths.R bans `[.]h5` and `[.]db` in
+# visible text, which is the same rule the paragraph above obeys by not naming the registry,
+# and it is the right rule here too: a format is a fact about the tool, a filename is a fact
+# about somebody's disk. The file COUNT is left out for a different reason, that it moves
+# every time a cohort is registered and would start lying on its own.
+'<p>The data ships inside the tool as well, rather than being fetched when you ask for it. ',
+'The clinical and survival fields are stored as a SQLite database, so the follow-up for any ',
+'set of cohorts comes back in a single query. The expression, activity and protein matrices ',
+'are stored as HDF5, one file per cohort and per data type, so asking about one gene reads ',
+'one column rather than loading a whole matrix.</p>',
 '<p class="guide-fine">Where the data came from and on whose terms, the licence, how to ',
 'cite the tool and who built it are on the <b>About</b> tab.</p>',
 

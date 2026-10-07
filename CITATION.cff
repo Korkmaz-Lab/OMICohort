@@ -30,8 +30,8 @@ repository-code: "https://github.com/Korkmaz-Lab/OMICohort"
 # reaches it from this record in one click. Declared once as ABOUT_SOFTWARE_DOI in R/about.R;
 # do not edit this line on its own.
 doi: "10.5281/zenodo.22344779"
-version: "0.1.5"
-date-released: "2026-09-14"
+version: "0.1.6"
+date-released: "2026-10-07"
 keywords:
   - survival analysis
   - meta-analysis
@@ -41,13 +41,19 @@ keywords:
   - ARACNe
   - cancer genomics
 authors:
+# PER AUTHOR since step 226, and no longer the lab line for both. The manuscripts give these
+# two authors different affiliations, and a reader who finds the tool through the preprint and
+# then cites it from this file was being handed a third answer by neither. Derived from
+# ABOUT_AFFILIATIONS in R/about.R through about_affiliation(member); do not edit these two
+# strings here, edit the declaration and let section 4 of tests/test_release_files.R demand
+# this file catch up.
   - given-names: "Arda Burak"
     family-names: "Karagöz"
-    affiliation: "Korkmaz Lab, KUTTAM, Koç University"
+    affiliation: "Graduate School of Health Sciences, Koç University, Istanbul, Turkey; Koç University Research Center for Translational Medicine (KUTTAM), Istanbul, Turkey"
     email: "ardaveritas@gmail.com"
   - given-names: "Gozde"
     family-names: "Korkmaz"
-    affiliation: "Korkmaz Lab, KUTTAM, Koç University"
+    affiliation: "Koç University Research Center for Translational Medicine (KUTTAM), Istanbul, Turkey; School of Medicine, Koç University, Istanbul, Turkey"
 
 # Reference data whose licences make attribution a CONDITION rather than a
 # courtesy. These are the non-cohort inputs; the patient cohorts are credited on

@@ -66,10 +66,19 @@ It operates unprivileged, requires no network access after startup, and provides
 Execute the following command in your terminal:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.5
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.6
 ```
 
 Once started, navigate to http://localhost:7654 in your web browser.
+
+That tag is pinned to one release, and it is the one to quote in a methods section or anywhere
+a result has to be reproducible later. To run whichever release is newest instead:
+
+```bash
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:latest
+```
+
+Docker caches images by tag, so if you have run `latest` before, run `docker pull ghcr.io/korkmaz-lab/omicohort:latest` first to pick up the current one.
 
 ## The problem it is built around
 
@@ -173,6 +182,11 @@ there and in `CITATION.cff`.
 
 This repository holds the code. The derived matrices ship inside the container image rather
 than as a separate deposit, so one pull gives you the application and everything it opens.
+
+The clinical and survival fields are stored as a SQLite database, so the follow-up for any
+set of cohorts comes back in a single query. The expression, activity and protein matrices
+are stored as HDF5, one file per cohort and per data type, so asking about one gene reads
+one column rather than loading a whole matrix.
 
 ## Citing
 
