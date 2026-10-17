@@ -10,7 +10,7 @@
 #
 # Git will not re-include a file whose PARENT DIRECTORY is still excluded, so
 # each directory is re-included before its contents are filtered. Verify with
-# `git ls-files` after any edit here: 27 files, and no tracked file quoting an
+# `git ls-files` after any edit here: 28 files, and no tracked file quoting an
 # absolute home-directory path.
 #
 # Everything excluded here still exists on disk. This file changes what is
