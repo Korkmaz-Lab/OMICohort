@@ -183,6 +183,17 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
 .g_esc <- function(x) .html_escape(x)
 .g_join <- function(x) paste(.g_esc(x), collapse = ", ")
 
+# A link to ANOTHER TAB of this app (step 249). The Guide and About each send the reader to
+# the other, and until this step only in words: the Guide has no visible nav item (the brand
+# is the way in), so "on the Guide tab" named something a reader could not see to click.
+# Deliberately NO href. It is not a URL, and tests/test_about_derived.R holds the About page's
+# href set to exactly ABOUT_PEOPLE$links, the external links a reader acts on unchecked.
+# app.R's click handler reads data-goto and switches tabs; tests/test_guide_derived.R holds
+# every data-goto to a real tab title and the handler to its observer.
+.tab_link <- function(tab, text)
+  sprintf('<a class="guide-tablink" role="button" tabindex="0" data-goto="%s">%s</a>',
+          .g_esc(tab), .g_esc(text))
+
 # THE ENDPOINT COLUMN CARRIES THE PRIMARY MARK, rather than a column of its own. Until step
 # 142 this table had nine columns and two of them were about endpoints: one listing what was
 # scanned and one naming which is primary. The primary endpoint is always one of the scanned
@@ -313,7 +324,7 @@ guide_html <- function(f) {
 'primary-endpoint analyses (<b>', .g_int(f$patients), ' patients</b> and <b>', .g_int(f$events),
 ' recorded events</b>); the rest record a different endpoint and are queried on their own. ',
 'Each cohort is fitted on its own and the results combined by meta-analysis, never ',
-'merged into one pile. Unlike the public KM plotters, the score you query does not have to be a ',
+'merged into a single model. Unlike the public KM plotters, the score you query does not have to be a ',
 'gene&rsquo;s expression.</p>',
 '</div>',
 
@@ -328,7 +339,8 @@ guide_html <- function(f) {
 'expressed and doing nothing.</p>',
 
 '<p>OMICohort asks a different question: <b>is this TF&rsquo;s regulatory program switched on?</b> ',
-'That is measured from the behaviour of the genes the TF controls, in two steps.</p>',
+'That is measured from the behaviour of the TF&rsquo;s regulon, the genes an ARACNe network ',
+'infers as its targets, in two steps.</p>',
 
 '<div class="guide-steps">',
 '<div class="guide-step"><span class="guide-num">1</span><div>',
@@ -378,7 +390,16 @@ guide_html <- function(f) {
 '<h3 class="guide-h2">The data</h3>',
 '<p>Public cohorts only, with clinical follow-up: TCGA, METABRIC, SCAN-B, CGGA and curated GEO ',
 'series. A cohort is included for an endpoint only if it actually carries that endpoint, ',
-'which is why the pool size <i>k</i> changes when you switch between OS and DFS.</p>',
+'which is why the pool size <i>k</i> changes when you switch between OS and DFS. ',
+# What DFS holds (step 246, at the author's request). The label is the registry's slot name,
+# and each source fills it with its own field: the TCGA CDR's progression-free interval (all
+# TCGA cohorts, scripts/stage_common.py), METABRIC's relapse-free survival, and each GEO
+# series' own field. test_guide_derived.R holds the registry to exactly those three families.
+'<b>DFS</b> is the name used here for each cohort&rsquo;s recurrence or progression endpoint as ',
+'its source records it: the progression-free interval for TCGA, relapse-free survival for ',
+'METABRIC, and each GEO series&rsquo; own disease-free, relapse, recurrence or progression ',
+'field. They count the same kind of event, the disease returning or advancing, but are not one ',
+'identical definition.</p>',
 .guide_table(f),
 
 # ---------------------------------------------------------------- reading the output
@@ -428,6 +449,143 @@ guide_html <- function(f) {
 'effect estimates, never by concatenating datasets.</li>',
 '<li>Vertical ticks are censored patients (last known alive, or lost to follow-up).</li>',
 '<li>Separation late in a curve where few patients remain is the least reliable part of it.</li>',
+'</ul>',
+
+# THE RESULTS TABLE (step 251), at the author's request after step 250. Read off survtable(),
+# survtable_display(), .strat_col() and mgene_display(). tests/test_guide_derived.R holds the
+# column names to the code that makes them: a column added without a sentence here fails there.
+# The thresholds and the Multiple query link text are interpolated, never typed. Step 251 also
+# added a "Downloads" subsection; step 252 removed it at the author's call, keeping only the
+# CSV's column meanings, below, which nothing else on the page carries.
+'<h4 class="guide-h3">The results table</h4>',
+'<p>Under the KM curves is the table of numbers behind the forest: one row for every selected ',
+'cohort, including any that could not be estimated, and a last row for the pooled estimate. ',
+'Each Multiple query panel has the same table, behind its &ldquo;', .g_esc(MQ_DETAIL_SHOW),
+'&rdquo; link.</p>',
+'<ul class="guide-list">',
+'<li><b>cohort</b>: the cohort&rsquo;s name. The last row reads POOLED, with k, the number of ',
+'cohorts pooled, and I&sup2;. It stays at the bottom whichever column is sorted, because it ',
+'summarizes the rows above it and is not one of them.</li>',
+'<li><b>n</b> and <b>events</b>: the patients in that cohort&rsquo;s model, and how many of them ',
+'had the event before the horizon. The events, more than n, decide how precise the ',
+'cohort&rsquo;s hazard ratio can be. Both are blank on the pooled row.</li>',
+'<li><b>HR</b> and <b>95% CI</b>: the hazard ratio per SD and its interval, from the ',
+'cohort&rsquo;s own Cox model. On the pooled row they are the random-effects estimate, the ',
+'diamond.</li>',
+'<li><b>p</b>: the Wald test of that hazard ratio against 1. On the pooled row it tests the ',
+'pooled estimate.</li>',
+'<li><b>log-rank p</b>: the test of the two median-split KM curves. It answers a different ',
+'question from p, as the KM section explains. It is blank on the pooled row, and for a cohort ',
+'whose curves are withheld.</li>',
+'<li><b>PH p</b>: the test of proportional hazards, the assumption that the hazard ratio stays ',
+'the same throughout follow-up. A <b>!</b> marks p &lt; ', format(PH_ALPHA), ': the ratio ',
+'changes over time, so the HR is an average over follow-up and not one constant ratio. A pooled ',
+'estimate has no such test, so it is blank there.</li>',
+'<li><b>stratified</b>: whether the cohort&rsquo;s model was stratified on the tissue&rsquo;s ',
+'stratifier. It reads no for a tissue that declares none, and for a cohort whose patients lack ',
+'the labels or all share one. On the pooled row it says how many of the k cohorts were, for ',
+'example &ldquo;2 of 3&rdquo;, because a pool that mixes the two averages two kinds of ',
+'estimate; it is blank when none was.</li>',
+'<li>A cohort that could not be estimated keeps its row, with its n and events where they are ',
+'known and the estimates blank. The note under the forest gives the reason.</li>',
+'</ul>',
+'<p>Sorting a column sorts by its numbers, so the smallest p comes first. The 95% CI column does ',
+'not sort, because an interval has no single value to order by. When a horizon is in force, ',
+'the caption under the table states it.</p>',
+# The table's CSV columns, kept when the Downloads subsection was removed in step 252: the
+# buttons explain themselves, but nothing else tells a reader of the file what these mean.
+'<p>The <b>Table (CSV)</b> download has the same rows with fuller columns, so the ',
+'file explains itself apart from the app: <code>feature</code>, <code>endpoint</code> and ',
+'<code>max_fu</code>, the horizon in months, on every row; the interval as <code>ci_lb</code> ',
+'and <code>ci_ub</code>; <code>logrank_p</code> and <code>ph_p</code>; and ',
+'<code>ph_violated</code> and <code>strata_adj</code>, TRUE or FALSE for the ! and for ',
+'stratified. Four belong to the pooled row: <code>pool_strata_k</code>, the number of ',
+'stratified cohorts in it; <code>pool_ci_identified</code>, FALSE when fewer than ',
+format(POOL_MIN_K), ' cohorts were pooled, too few to estimate how much they truly differ; and ',
+'<code>HR_fe</code> and <code>p_fe</code>, the fixed-effect estimate on the same cohorts, which ',
+'shows whether a result depends on the pooling method.</p>',
+'<p>On the Multiple genes tab a row is a gene, not a cohort, and the table is built for comparing ',
+'genes. <b>gene</b> is the symbol; <b>cohorts</b> is how many of the selected cohorts produced an ',
+'estimate; <b>n</b> and <b>events</b> are summed over those cohorts; <b>HR</b>, <b>95% CI</b> and ',
+'<b>p</b> are the gene&rsquo;s pooled estimate; and <b>PH</b> counts the cohorts where ',
+'proportional hazards was rejected. The arrow at the start of a row opens the rest: I&sup2;, the ',
+'DepMap line, the gene&rsquo;s notes and its own per-cohort table. This table does not sort: the ',
+'order is the list you typed, and ranking a hand-picked list by p is the reading its note warns ',
+'against.</p>',
+
+# THE OTHER OUTPUTS OF A SINGLE QUERY (step 250). Until this step the Guide explained the HR,
+# the forest and the KM and nothing else the page shows: the tumour vs normal panel was three
+# words in "The tabs", and the five lines above the forest and the notes for a missing curve or
+# cohort had only their two-sentence hovers. The author noticed on 2026-10-20. Every statement
+# below was read off the code that produces it (R/tumor_normal.R, R/depmap.R, R/cptac.R,
+# R/step_d_immune_mediation.R, R/step_f_cna.R, mediation_is_explained() in R/plots.R), and
+# the two thresholds are interpolated from the constants the badges use, never typed.
+# tests/test_guide_derived.R holds the "breast only" claim to the scan files on disk.
+'<h4 class="guide-h3">The tumour vs normal panel</h4>',
+'<p>Beside the forest, when a selected cohort can supply it, is the one panel here that is ',
+'<b>not a survival result</b>. It asks whether the score is higher in the tumour than in the ',
+'same patient&rsquo;s own normal tissue, as context for the gene. Only the TCGA cohorts label ',
+'tumour and normal samples, and not every one has normal tissue, so it is drawn for those that ',
+'do.</p>',
+'<ul class="guide-list">',
+'<li><b>It is paired.</b> Each patient with both a tumour and a normal sample is their own ',
+'control, and the number to read is the median of those per-patient differences, with a ',
+'Wilcoxon signed-rank p. The two boxes are for looking.</li>',
+'<li><b>One unit is one SD of that cohort&rsquo;s tumours</b>, the same unit as the ',
+'&ldquo;per SD&rdquo; in the HR, so the panel and the forest can be read side by side. For mRNA ',
+'the panel also gives a fold change, computed from TPM rather than from the plotted values, ',
+'because one SD is a different amount of change for a tightly regulated gene than for a ',
+'variable one.</li>',
+'<li><b>Only solid-tissue normals are used.</b> Blood-derived normal samples are a different ',
+'tissue and are left out.</li>',
+'<li>When no selected cohort can supply a pair, the panel is absent and its section says why: a ',
+'cohort that does not label tumour and normal, or one that does not measure the gene.</li>',
+'</ul>',
+
+# REWRITTEN IN STEP 252 at the author's request: the heading read as informal and the text as
+# mechanical. Same facts, same interpolated thresholds; the internal step letters (D, E, F)
+# are gone, since a reader has no way to know what they refer to.
+'<h4 class="guide-h3">Annotations above the forest plot</h4>',
+'<p>Above the forest plot, up to four short annotations add evidence about the gene from ',
+'outside the survival cohorts. They are looked up, not computed for the query, and none of ',
+'them changes the hazard ratio below them. ',
+'All except the DepMap annotation are <b>breast only</b>, because the protein cohort and the ',
+'copy-number analysis they come from were run for breast cancer.</p>',
+'<ul class="guide-list">',
+'<li><b>DepMap essentiality.</b> Flags a gene whose knockout stops growth in nearly every ',
+'cancer cell line, which DepMap calls &ldquo;common essential&rdquo;; the line names the release. ',
+'Such a gene is a poor selective drug target. The flag comes from cell lines and says nothing ',
+'about whether the gene&rsquo;s hazard ratio is real.</li>',
+'<li><b>CPTAC protein detection.</b> In how many tumours of CPTAC-BRCA, an independent breast ',
+'cohort measured by mass spectrometry, the protein was detected. A low count means the protein ',
+'is hard to measure by this method, not that patients lack it.</li>',
+'<li><b>CPTAC protein validation.</b> For a TF, how closely its inferred activity follows its ',
+'own measured protein across the CPTAC tumours. A weak correlation does not by itself count ',
+'against the activity score, since a TF&rsquo;s activity can change without the amount of ',
+'protein changing.</li>',
+'<li><b>Copy-number adjustment.</b> For the TFs this analysis covered, whether the association ',
+'with survival holds once the model also accounts for copy number at the gene&rsquo;s own ',
+'locus. The annotation ',
+'reads <b>IS</b> explained only when the unadjusted association has p &lt; ',
+format(MEDIATION_ALPHA), ', the adjustment shrinks the log hazard ratio toward zero by at least ',
+format(MEDIATION_ATTENUATION_MIN), '%, and the adjusted p is above ', format(MEDIATION_ALPHA),
+'; otherwise it reads NOT. &ldquo;Explained&rdquo; means copy number carries most of the same ',
+'information about outcome. It does not show that one causes the other.</li>',
+'</ul>',
+
+'<h4 class="guide-h3">When a curve, a panel or a cohort is missing</h4>',
+'<p>Nothing is dropped silently. Each of these is stated where the result would have been:</p>',
+'<ul class="guide-list">',
+'<li><b>A cohort that did not record the endpoint</b> is not offered for it. The line under the ',
+'cohort selector names it, says what it does record, and which endpoint brings it back.</li>',
+'<li><b>A cohort that does not measure the gene</b> is named under the forest and in its KM tab, ',
+'so its absence is not read as a null result.</li>',
+'<li><b>A cohort with too few events</b>, or whose model cannot be estimated, is left out of the ',
+'pool and named with the reason.</li>',
+'<li><b>A KM curve can be withheld while the HR stands.</b> When half or more of a cohort shares ',
+'the lowest score, typically a gene that is undetected in most tumours, a median split cannot ',
+'form two groups. The HR still comes from the continuous score and still pools; the ',
+'cohort&rsquo;s KM tab says how many patients are tied.</li>',
 '</ul>',
 
 '<h4 class="guide-h3">Three things the panel tells you that are easy to miss</h4>',
@@ -533,7 +691,7 @@ guide_html <- function(f) {
 'are stored as HDF5, one file per cohort and per data type, so asking about one gene reads ',
 'one column rather than loading a whole matrix.</p>',
 '<p class="guide-fine">Where the data came from and on whose terms, the licence, how to ',
-'cite the tool and who built it are on the <b>About</b> tab.</p>',
+'cite the tool and who built it are on the ', .tab_link("About", "About tab"), '.</p>',
 
 '</div>')
 }
@@ -602,6 +760,9 @@ GUIDE_CSS <- local({
 .guide-list { margin: 0.4rem 0 0.9rem 0; }
 .guide-list li { margin-bottom: 0.42rem; }
 .guide-fine { font-size: 97% !important; color: #666; margin-top: 0.7rem; }
+/* .tab_link(): an <a> with no href, so the browser gives it neither the pointer nor the
+   underline a reader looks for; the colour already comes from the page-wide `a` rule. */
+.guide-tablink { cursor: pointer; text-decoration: underline; }
 .guide-callout { border-left: 3px solid __BRAND_ORANGE__; background: __BRAND_WARM__;
                  padding: 0.7rem 0.9rem; margin: 1rem 0; }
 .guide-steps { margin: 0.9rem 0 1.2rem 0; }

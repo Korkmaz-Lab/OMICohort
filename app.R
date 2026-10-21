@@ -154,6 +154,14 @@ mq_strata_note <- function() {
 
 # ---- scan tables, discovered per tissue from results/<cancer_type>/ ---------------
 
+# The immune mediation badge (an immune infiltration score as a covariate on a TF's HR) is
+# withdrawn from the page as of step 255, by the author's decision: immune scores are deferred
+# to a future release, as the manuscript already records. HIDDEN, not deleted, the same way the
+# immune selector was in step 108: R/step_d_immune_mediation.R, its results and the badge's
+# renderUI all stay, the summary is kept out of SCANS_BY_CT below, and flipping this restores
+# the badge. The Guide's "Annotations above the forest plot" must then name it again.
+SHOW_IMMUNE_MEDIATION <- FALSE
+
 # Human labels for the scan artifacts we know about. A CSV present in the tissue's
 # results dir but absent here still shows up, labelled by filename — so a newly run
 # scan appears in the app without a code change.
@@ -168,15 +176,16 @@ SCAN_LABELS <- c(
   mr_scan_os_idhadj       = "OS - IDH-adjusted scan (all TFs)",
   mr_scan_os_pam50adj     = "OS - PAM50-adjusted scan (all TFs)",
   mr_scan_dfs_pam50adj    = "DFS - PAM50-adjusted scan (all TFs)",
-  immune_mediation_summary = "Immune mediation test (Step D)",
-  cptac_protein_validation = "CPTAC protein validation (Step E)",
-  cna_mediation_summary   = "CNA mediation test (Step F)"
+  immune_mediation_summary = "Immune mediation test",
+  cptac_protein_validation = "CPTAC protein validation",
+  cna_mediation_summary   = "CNA mediation test"
 )
 # Per-cohort detail tables and staging artifacts: present on disk, not useful as a
 # standalone browser view (os_hits_annotated is joined into os_annotated instead).
 SCAN_HIDE <- c("immune_mediation", "cna_mediation", "cohort_power_diagnostic",
                "phase2b_audit", "phase2b_duplicates", "phase2b_id_coverage",
-               "os_hits_annotated")
+               "os_hits_annotated",
+               if (!SHOW_IMMUNE_MEDIATION) "immune_mediation_summary")
 
 .read_scan <- function(ct, name)
   read.csv(file.path(ROOT, "results", ct, paste0(name, ".csv")), stringsAsFactors = FALSE)
@@ -212,7 +221,7 @@ scan_choices_of <- function(ct) {
   nm <- names(SCANS_BY_CT[[ct]])
   if (!length(nm)) return(character(0))
   lab <- ifelse(nm == "os_annotated",
-                "OS - discovery->validation, Step A/B annotated",
+                "OS - discovery->validation, with drug and PAM50 annotations",
                 ifelse(nm %in% names(SCAN_LABELS), SCAN_LABELS[nm], nm))
   ord <- order(match(nm, c("os_annotated", names(SCAN_LABELS))), nm)
   setNames(nm[ord], lab[ord])
@@ -240,6 +249,27 @@ FEATURES_BY_CT <- setNames(lapply(CANCER_TYPES, function(ct)
 # KIND_LABEL moved to R/plots.R on 2026-09-10 (step 170), so the manuscript scripts can
 # read the same constant the app writes. It is sourced above, at line 31.
 
+# The four endpoint selectors, built in one place (step 244). The OPEN list carries the full
+# name from endpoint_choices(), "DFS (Disease-free survival)", which is where the author asked
+# for it; the CLOSED box shows only the code. The labels do not fit the two-column-wide control,
+# and as plain selectInput()s the closed box truncated to "DFS (Disease..." at twice its height.
+# Selectize's item renderer draws the selected item from its value, which is the code. Values
+# stay the codes either way, so no input$*endpoint reader changes.
+# The Single query tab's section headings (step 245). The page shows up to three figures and
+# a table, and each brings its own help line and notes; with nothing naming the figure, the
+# author could not tell which lines belonged to the forest, the tumour/normal panel or the KM
+# curves. One heading per figure, each placed with that figure's text under it. `[[` so an
+# unknown key is an error, not a heading that silently says nothing.
+SQ_SECTION_HEAD <- c(forest = "Forest plot", tn = "Tumour vs matched adjacent normal",
+                     km = "Kaplan-Meier curves", hr = "Results table")
+.sq_head <- function(which) tags$h4(SQ_SECTION_HEAD[[which]], class = "sq-section-head")
+
+ENDPOINT_SELECTIZE <- list(render = I(
+  "{item: function(item, escape) { return '<div>' + escape(item.value) + '</div>'; }}"))
+endpoint_select <- function(id, eps, selected)
+  selectizeInput(id, "Endpoint", endpoint_choices(eps), selected = selected,
+                 options = ENDPOINT_SELECTIZE)
+
 # Kinds offered as a top-level query. Two of the four KINDS are deliberately NOT offered,
 # for the same reason in two shapes: a kind belongs here only if the tool can say something
 # about the answer, and neither of these has a scan, an anchor or a validation split behind
@@ -257,7 +287,8 @@ FEATURES_BY_CT <- setNames(lapply(CANCER_TYPES, function(ct)
 # query in the app whose result could not be placed against anything the tool had computed.
 # HIDDEN, not deleted, and deliberately so -- the immune_*.h5 files stay, get_feature(kind =
 # "immune") still works from the console, tumour/normal still accepts it (TN_KINDS below),
-# and the Step D immune-mediation badge is untouched and still renders. That badge is not
+# and the Step D immune-mediation badge was left rendering (withdrawn too in step 255, see
+# SHOW_IMMUNE_MEDIATION). That badge is not
 # this: it reports a pre-registered lineage score as a COVARIATE on a VIPER hit's HR, which
 # is a statement about a result, where the selector offered a browse of scores with no
 # result attached. Restoring the browse is this one vector; what it would need first is a
@@ -366,6 +397,13 @@ TAB_RPPA   <- "Protein (RPPA)"
 # they open the tool to do. It is the Guide's counterpart on a different clock -- the
 # Guide changes when the analysis changes, this changes when the project's circumstances do.
 TAB_ABOUT  <- "About"
+TAB_LINK_JS <- paste(
+  "$(document).on('click keydown', '.guide-tablink', function(e) {",
+  "  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;",
+  "  e.preventDefault();",
+  "  Shiny.setInputValue('goto_tab', $(this).data('goto'), {priority: 'event'});",
+  "  window.scrollTo(0, 0);",
+  "});", sep = "\n")
 # Tissues with an rppa_<cohort>.h5 on disk. Resolved ONCE at startup from the files
 # themselves, never listed: a hand-kept list is what goes stale when a tissue is staged.
 RPPA_TISSUES <- Filter(rppa_available, CANCER_TYPES)
@@ -408,6 +446,11 @@ PAGE_CSS <- "
 .rppa-km { margin-top: 18px; }
 .rppa-km-head { margin: 0 0 2px 0; font-size: 15px; font-weight: 600; color: #333; }
 
+/* The Single query section headings (.sq_head() in app.R): the same type as .rppa-km-head,
+   with a rule under it so each figure's block visibly starts where the last one ends. */
+.sq-section-head { margin: 18px 0 6px 0; padding-bottom: 3px; font-size: 15px;
+                   font-weight: 600; color: #333; border-bottom: 1px solid #e5e5e5; }
+
 .narrow-page { max-width: 1400px; margin: 0 auto; padding-left: 5%; padding-right: 5%; }
 
 /* The four tabs' control panels must be the SAME WIDTH. They were not: measured 2026-08-25,
@@ -434,18 +477,28 @@ html { overflow-y: scroll; }
    OPEN LIST was clipping every label except Breast and Ovarian. The Multiple genes tab did
    not show this only because its control sits in a column(3). Widening the column would
    have to take a unit from a neighbour; instead the dropdown is allowed to size to its
-   content while the closed control keeps its column width. Scoped to the two cancer-type
-   selectors, so no other dropdown's width behaviour changes. */
+   content while the closed control keeps its column width. Scoped to the cancer-type
+   selectors and, since step 244, the four endpoint selectors, whose open list now carries the
+   full name ('DSS (Disease-specific survival)') in a control of the same width; no other
+   dropdown's width behaviour changes. */
 #cancer_type + .selectize-control .selectize-dropdown,
 #mg_ct + .selectize-control .selectize-dropdown,
-#rp_ct + .selectize-control .selectize-dropdown {
+#rp_ct + .selectize-control .selectize-dropdown,
+#endpoint + .selectize-control .selectize-dropdown,
+#mq_endpoint + .selectize-control .selectize-dropdown,
+#mg_endpoint + .selectize-control .selectize-dropdown,
+#rp_endpoint + .selectize-control .selectize-dropdown {
   width: auto !important;
   min-width: 100%;
   white-space: nowrap;
 }
 #cancer_type + .selectize-control .selectize-dropdown .option,
 #mg_ct + .selectize-control .selectize-dropdown .option,
-#rp_ct + .selectize-control .selectize-dropdown .option { white-space: nowrap; }
+#rp_ct + .selectize-control .selectize-dropdown .option,
+#endpoint + .selectize-control .selectize-dropdown .option,
+#mq_endpoint + .selectize-control .selectize-dropdown .option,
+#mg_endpoint + .selectize-control .selectize-dropdown .option,
+#rp_endpoint + .selectize-control .selectize-dropdown .option { white-space: nowrap; }
 
 /* Brand lockup: the mark sits left of the wordmark, both vertically centred in the bar.
    navbar-brand ships a fixed line-height/padding for a text-only brand, so the image needs
@@ -574,6 +627,15 @@ a:hover { color: __BRAND_DARK__; }
    figure. `note-tuck` pulls a note up under the thing above it; this does the same, and is
    its own class rather than a reuse so that restyling notes cannot silently restyle help. */
 .fig-help { margin: 2px 0 12px 0; font-size: 0.88em; color: #666; }
+/* How to read this opens on click (step 252): a details box, not a hover. */
+.fig-help > summary { cursor: pointer; display: inline-block; }
+/* inline-block drops the browser's own disclosure triangle, so the arrow is drawn here. */
+.fig-help > summary::before { content: '\\25B8\\00a0'; }
+.fig-help[open] > summary::before { content: '\\25BE\\00a0'; }
+.fig-help > summary:hover, .fig-help > summary:focus { color: #222; }
+.fig-help[open] { color: #333; }
+.fig-help ul { margin: 6px 0 2px 0; padding-left: 20px; max-width: 760px; }
+.fig-help li { margin: 3px 0; line-height: 1.4; }
 
 a.btn.btn-export, a.btn.btn-export:visited {
   background: #fff; color: #333; border: 1px solid #bbb; font-weight: normal;
@@ -859,7 +921,12 @@ ui <- navbarPage(
   # holds the three together -- the file, the generator, and this link.
   header = tags$head(
     tags$link(rel = "icon", type = "image/png", href = FAVICON_HREF),
-    tags$style(HTML(PAGE_CSS)), tags$style(HTML(GUIDE_CSS))),
+    tags$style(HTML(PAGE_CSS)), tags$style(HTML(GUIDE_CSS)),
+    # The Guide and About link to each other with .tab_link() (R/guide.R, step 249), which
+    # renders an <a> with data-goto and NO href. This turns a click, or Enter or Space on the
+    # focused link, into input$goto_tab; the observer in the server switches the tab. Delegated
+    # from document because both pages are static HTML inside tabPanels.
+    tags$script(HTML(TAB_LINK_JS))),
 
   # Controls across the TOP, results beneath at full page width — the same shape as the
   # Multiple query tab (2026-08-06). The old sidebarLayout ran ~800px of controls beside a
@@ -962,7 +1029,7 @@ ui <- navbarPage(
         uiOutput("depmap_badge"),
         uiOutput("cptac_badge"),
         uiOutput("cptac_validation_badge"),
-        uiOutput("immune_mediation_badge"),
+        if (SHOW_IMMUNE_MEDIATION) uiOutput("immune_mediation_badge"),
         uiOutput("cna_mediation_badge")),
     # Shape follows k via the same formula as the PDF export (plots.R), so the on-screen
     # forest and the downloaded one really are the same figure. The literal this replaced
@@ -975,15 +1042,10 @@ ui <- navbarPage(
     # whether the panel is there -- two independent outputs cannot agree on that without
     # one of them reading the other's state anyway. The PLOTS stay separate outputs, so a
     # failure in either draws in its own box.
+    #
+    # The forest's own help and notes are placed INSIDE forest_slot, under the forest, since
+    # step 245; see the comment on .sq_head() in the server.
     uiOutput("forest_slot"),
-    # A figure's help exists only when the figure does -- the SAME rule the export bar
-    # follows, and for the same reason: an explanation of a plot that was never drawn is
-    # an instruction for reading nothing. All of these are gated on the run counter below.
-    uiOutput("sq_help_forest"),
-    uiOutput("tau_note"),
-    uiOutput("pooled_note"),
-    uiOutput("scan_rank"),
-    uiOutput("excluded_note"),
     # KM curves and the per-cohort table, full page width. A KM curve is read left-to-right
     # along time, so the width is the useful axis; the plot height still comes from
     # km_size_in() (synced to the PDF export), only width grows.
@@ -1026,8 +1088,7 @@ ui <- navbarPage(
           # has a real pool for; the tissues' PRIMARY endpoints differ (breast DFS,
           # ovarian OS, luad DFS, lusc OS, coad DFS), which the note below states so the
           # tab cannot be mistaken for five primary analyses.
-          column(2, selectInput("mq_endpoint", "Endpoint", c("OS", "DFS", "DSS"),
-                                selected = "OS")),
+          column(2, endpoint_select("mq_endpoint", c("OS", "DFS", "DSS"), selected = "OS")),
           column(2, checkboxInput("mq_adjust_strata", "Stratify where available", value = TRUE),
                  tags$p(class = "note note-muted note-tuck", mq_strata_note())),
           column(2, actionButton("mq_run", "Run all panels", class = "btn-primary",
@@ -1131,8 +1192,7 @@ ui <- navbarPage(
                                 selected = if (DEFAULT_CT %in% RPPA_TISSUES) DEFAULT_CT
                                            else RPPA_TISSUES[1])),
           column(3, uiOutput("rp_gene_ui")),
-          column(2, selectInput("rp_endpoint", "Endpoint", choices = RPPA_ENDPOINTS,
-                                selected = "OS")),
+          column(2, endpoint_select("rp_endpoint", RPPA_ENDPOINTS, selected = "OS")),
           # A Run button, like every other tab. Not decoration: the export bar invariant
           # (tests/test_export_bar.R) requires every downloadButton to sit behind a run
           # counter, because a live-reactive export can hand over a PDF of a query the
@@ -1201,10 +1261,18 @@ server <- function(input, output, session) {
   # rather than a visible break, which is why tests/test_guide_derived.R asserts the pair
   # (hidden item + this handler) rather than either half.
   observeEvent(input$brand_home, updateNavbarPage(session, "nav", selected = TAB_GUIDE))
+  # The Guide and About tabs' links to each other (TAB_LINK_JS, step 249). Only those two
+  # titles are honoured: the value comes from the page, and a link may switch between the two
+  # static pages but never land the reader on a query tab mid-state.
+  observeEvent(input$goto_tab, {
+    req(input$goto_tab %in% c(TAB_GUIDE, TAB_ABOUT))
+    updateNavbarPage(session, "nav", selected = input$goto_tab)
+  })
 
   # ---- hover help ON the figures (2026-08-30, step 117) -------------------------------
-  # The explanations themselves are FIGURE_INFO in R/plots.R, declared beside the code that
-  # draws each figure and length-capped by info_note_html(). Only the wiring is here.
+  # The explanations themselves are FIGURE_HELP in R/plots.R, declared beside the code that
+  # draws each figure, each point held to the hover cap by figure_help_html(). Since step 252
+  # they open on click rather than on hover; the reason is recorded there. Only the wiring is here.
   #
   # ONE rule, applied six times rather than six gates written six ways: a figure's help
   # exists exactly when the figure does. That is the same rule the export bar follows, and
@@ -1216,14 +1284,14 @@ server <- function(input, output, session) {
   # The MULTIPLE QUERY drawer and its table do NOT come through here. They are built inside
   # output$mq_panels, which already exists only for a tissue that produced a panel, so a
   # second gate there would be a gate on a gate.
-  .fig_help <- function(which, counter) renderUI({
+  .fig_help <- function(which, counter, head = NULL) renderUI({
     n <- counter()
     if (is.null(n) || n == 0) return(NULL)
-    HTML(figure_help_html(which))
+    tagList(if (!is.null(head)) .sq_head(head), HTML(figure_help_html(which)))
   })
   output$sq_help_forest <- .fig_help("forest", reactive(input$run))
-  output$sq_help_km     <- .fig_help("km",     reactive(input$run))
-  output$sq_help_hr     <- .fig_help("hr",     reactive(input$run))
+  output$sq_help_km     <- .fig_help("km",     reactive(input$run), head = "km")
+  output$sq_help_hr     <- .fig_help("hr",     reactive(input$run), head = "hr")
   output$mq_help_forest <- .fig_help("forest", reactive(input$mq_run))
   output$mg_help_hr     <- .fig_help("hr",     reactive(input$mg_run))
   output$rp_help_hr     <- .fig_help("hr",     reactive(input$rp_run))
@@ -1245,8 +1313,7 @@ server <- function(input, output, session) {
                  selected = if ("viper" %in% k) "viper" else k[1])
   })
   output$endpoint_ui <- renderUI({
-    selectInput("endpoint", "Endpoint", endpoints_of(ct()),
-                selected = default_endpoint_of(ct()))
+    endpoint_select("endpoint", endpoints_of(ct()), selected = default_endpoint_of(ct()))
   })
   # CHIP TOGGLES (2026-08-07). Every cohort is on screen at all times and a chip is a toggle:
   # selecting and dropping are the SAME gesture. The tag list this replaced was asymmetric --
@@ -1267,8 +1334,8 @@ server <- function(input, output, session) {
   # cohort that simply vanishes is indistinguishable from one that never existed, which is the
   # quiet default this project keeps banning. They sit outside the checkbox group, so they
   # cannot be selected and cannot reach input$cohorts -- the chip is a statement, not a
-  # control. The line beneath gives the reason and the count only; the names are already on
-  # screen, and printing twelve of them in prose was the wall this presentation removes.
+  # control. The line beneath names them, says what each does record and which endpoint brings
+  # them back (.excluded_reason_line(); count-only until step 244, "not included" since 245).
   output$cohorts_ui <- renderUI({
     ct_ <- ct()
     ep  <- .endpoint_now(ct_)
@@ -1382,19 +1449,19 @@ server <- function(input, output, session) {
     if (is.null(r) || is.na(r$p_viper)) return(NULL)
     sig <- r$p_viper < 0.05
     tags$p(class = paste("note note-tuck", if (sig) "note-good" else "note-muted"),
-          sprintf("CPTAC protein validation (Step E): VIPER activity vs. measured protein r=%.2f, p=%.2g (n=%d).",
+          sprintf("CPTAC protein validation: VIPER activity vs. measured protein r=%.2f, p=%.2g (n=%d).",
                   r$cor_viper_vs_protein, r$p_viper, r$n))
   })
 
   output$immune_mediation_badge <- renderUI({
-    req(input$feature)
+    req(SHOW_IMMUNE_MEDIATION, input$feature)
     r <- .row_for(.scans()$immune_mediation_summary, input$feature)
     if (is.null(r)) return(NULL)
     # Same rule as the CNA badge below, and now literally the same code: it used to be
     # written out here a second time (2026-08-18, step 48).
     mediated <- mediation_is_explained(r)
     tags$p(class = paste("note note-tuck", if (mediated) "note-warn" else "note-good"),
-          sprintf("Immune mediation test (Step D): signal %s explained by %s infiltration (HR %.2f -> %.2f after adjusting, p=%.2g).",
+          sprintf("Immune mediation test: signal %s explained by %s infiltration (HR %.2f -> %.2f after adjusting, p=%.2g).",
                   if (mediated) "IS" else "NOT", r$immune_feature, r$HR_unadj, r$HR_adj, r$p_adj))
   })
 
@@ -1442,7 +1509,16 @@ server <- function(input, output, session) {
                       max_followup = .tau_arg(input$max_fu))
     validate(need(any(vapply(r$per_cohort, function(x) isFALSE(x$skipped), logical(1))),
                   "No selected cohort had enough events for this query."))
-    with_feature(r, sprintf("%s (%s)", input$feature, KIND_LABEL[[input$kind]]))
+    # Selected cohorts whose matrix does not list the feature never reach the engine, so the
+    # result cannot say why they are missing; recorded here so .cohort_note() names the
+    # feature in the KM tab and under the forest (step 244) instead of the fallback.
+    r <- with_absent(r, setdiff(input$cohorts,
+                                .cohorts_carrying(input$feature, input$cohorts, input$kind)),
+                     input$feature, input$kind)
+    # with_query() records what was run, so the downloads name their files from the result
+    # and never from the live selectors (step 253; see with_query() in R/plots.R).
+    with_query(with_feature(r, sprintf("%s (%s)", input$feature, KIND_LABEL[[input$kind]])),
+               ct(), input$feature)
   })
 
   # --- tumor vs normal-adjacent (context, not a survival result) ---
@@ -1502,7 +1578,7 @@ server <- function(input, output, session) {
       # being unable to answer is not a finding about the gene, and a figure with no boxes in
       # it would read as one. The reasons still print, so the absence is never silent.
       list(slot = length(est) > 0L, dl = length(est) > 0L, k = max(1L, length(est)),
-           notes = c(tn_notes(tn), tn_fc_note(tn)))
+           notes = c(tn_absent_lead(tn), tn_notes(tn), tn_fc_note(tn)))
     }, error = function(e) list(slot = TRUE, dl = FALSE, k = 1L, notes = NULL))
   })
 
@@ -1525,21 +1601,37 @@ server <- function(input, output, session) {
                style = sprintf("aspect-ratio: %g / %g;", FOREST_WIDTH_IN, forest_height_in(k)),
                plotOutput("forest_plot", height = "100%"))
 
+    # The forest's heading and its own text go WITH it, in whichever branch runs (step 245).
+    # They sat below the whole row until then, so with a tumour/normal panel beside the
+    # forest, and worse without one, the reader could not tell which figure a line was about.
+    # The heading waits for a Run, like every figure's help: a title over an empty box is
+    # a label for nothing.
+    fhead  <- if (isTRUE(input$run > 0)) .sq_head("forest")
+    fnotes <- tagList(uiOutput("sq_help_forest"),
+                      uiOutput("tau_note"),
+                      uiOutput("pooled_note"),
+                      uiOutput("scan_rank"),
+                      uiOutput("excluded_note"))
+
     # No panel: the forest goes back to the FULL width rather than sitting in a two-thirds
     # column beside an empty one. Ovarian and every CNA query take this branch, so it is not
     # an edge case, and a permanently reserved blank column would also give the "why it is
     # missing" note top billing beside the forest title that an absence has not earned.
+    # The reasons get their OWN titled block after the forest's text (step 245), not a line
+    # tucked under the forest, where they read as a note about it.
     if (!lay$slot)
       return(tagList(
-        box,
+        fhead, box, fnotes,
         if (length(lay$notes))
-          tags$p(class = "note note-muted note-tuck", paste(lay$notes, collapse = " "))))
+          div(.sq_head("tn"),
+              tags$p(class = "note note-muted", paste(lay$notes, collapse = " ")))))
 
     s <- tn_size_in(lay$k)
     w <- round(s[["width"]] * 96)
     div(class = "fp-row",
-        div(class = "fp-forest", box),
+        div(class = "fp-forest", fhead, box, fnotes),
         div(style = sprintf("flex: 0 0 %dpx;", w),
+            .sq_head("tn"),
             plotOutput("tn_panel", width = sprintf("%dpx", w),
                        height = sprintf("%dpx", round(s[["height"]] * 96))),
             tags$p(class = "note note-muted note-tuck",
@@ -1567,7 +1659,7 @@ server <- function(input, output, session) {
     tn <- req(tn_res())
     validate(need(length(tn_estimable(tn)) >= 1, "Nothing to plot."))
     tn_plot(tn)
-  }, res = 96)
+  }, res = 96, execOnResize = TRUE)
 
   # OFFERED ONLY WHEN THE PANEL IS ACTUALLY ON SCREEN, and off the SAME reactive that decides
   # whether to draw it -- not a second reading of tn_res(), so button and figure cannot drift
@@ -1587,8 +1679,8 @@ server <- function(input, output, session) {
   # tn_res() and nothing off a live input. That is the rule mq_res() states and the reason it
   # carries feature_id: inputs can be changed WITHOUT pressing Run, so a name built from them
   # can label a file with a query the file does not contain, and a filename outlives the
-  # session that made it. The other three Single query buttons still read input$feature live;
-  # they predate the rule and are not touched here.
+  # session that made it. The other three Single query buttons follow the same rule since
+  # step 253, through sq_export_name().
   #
   # The name is tn_export_name()'s and not a sprintf here, for the same reason mg_dl_table
   # calls mgene_export_name(): app.R has no test harness, so a rule written inline in this
@@ -1605,7 +1697,15 @@ server <- function(input, output, session) {
     req(res())
     validate(need(.n_estimable(res()) >= 1, "Nothing to plot."))
     forest_plot(res())
-  })
+  # execOnResize, on EVERY renderPlot here (step 258). Shiny's default replays the recorded
+  # drawing when an output is resized, and the first draw happens before the card has its
+  # final height (611px, then 1046px for a 13-cohort forest). Every plot function in this
+  # tool lays out from the device it draws on: label gutters, title wrapping and the pooled
+  # p line in inches, column widths from drawn strings. A replay stretches that layout to a
+  # device it was not computed for; the pooled p line came out 0.375in under its HR instead
+  # of one text line. Re-running costs one redraw. tests/test_forest_label_fit.R section 7
+  # holds every renderPlot() in this file to it.
+  }, execOnResize = TRUE)
 
   # k is a per-query quantity, not a tissue constant: a regulator below VIPER's
   # minimum regulon size drops out of individual cohorts, so the ovarian panel can
@@ -1761,12 +1861,14 @@ server <- function(input, output, session) {
       output[[paste0("km_", co)]] <- renderPlot(
         {
           r <- res()
-          validate(need(!is.null(r$per_cohort[[co]]) && isFALSE(r$per_cohort[[co]]$skipped),
-                        .cohort_note(co, r)))
+          # km_drawable(), not "not skipped": a fitted cohort whose median split collapses
+          # keeps its Cox and has no curve (step 244), and the note says why.
+          validate(need(km_drawable(r$per_cohort[[co]]), .cohort_note(co, r)))
           km_plot(r, co)
         },
         width  = .km_dim(co, "width"),
-        height = .km_dim(co, "height"))
+        height = .km_dim(co, "height"),
+        execOnResize = TRUE)
     })
   }
 
@@ -1860,14 +1962,14 @@ server <- function(input, output, session) {
     downloadButton("dl_table", "Table (CSV)", class = "btn-export")
   })
 
+  # NAMED FROM THE RESULT (step 253), like dl_tn and every other tab's export: the query is
+  # read off res() by sq_export_name(), never off a live selector.
   output$dl_forest <- downloadHandler(
-    filename = function() sprintf("forest_%s_%s_%s%s.pdf", ct(), .feature_tag(input$feature),
-                                  input$endpoint, .tau_tag(res())),
+    filename = function() sq_export_name(res(), "forest"),
     content  = function(file) forest_plot(res(), file = file)
   )
   output$dl_table <- downloadHandler(
-    filename = function() sprintf("survtable_%s_%s_%s%s.csv", ct(), .feature_tag(input$feature),
-                                  input$endpoint, .tau_tag(res())),
+    filename = function() sq_export_name(res(), "table"),
     content  = function(file) write.csv(survtable(res()), file, row.names = FALSE)
   )
   # OFFERED ONLY WHEN THE SELECTED TAB HAS A CURVE TO EXPORT.
@@ -1898,7 +2000,7 @@ server <- function(input, output, session) {
     if (is.null(input$run) || input$run == 0) return(NULL)
     r <- tryCatch(res(), error = function(e) NULL); co <- input$km_tabset
     if (is.null(r) || is.null(co) || is.null(r$per_cohort[[co]])) return(NULL)
-    if (!isFALSE(r$per_cohort[[co]]$skipped)) return(NULL)
+    if (!km_drawable(r$per_cohort[[co]])) return(NULL)
     downloadButton("dl_km", "KM, selected cohort (PDF)", class = "btn-export")
   })
 
@@ -1906,9 +2008,10 @@ server <- function(input, output, session) {
   # cohort belongs in the filename for the same reason tau does (.tau_tag): two exports of
   # one feature/endpoint differ only by cohort, and a name that omits it silently
   # overwrites. input$km_tabset is the tabsetPanel id set in the km_tabs renderUI.
+  # The cohort is the selected tab, read for both name and content, so they agree; the rest
+  # of the name comes from the result (step 253).
   output$dl_km <- downloadHandler(
-    filename = function() sprintf("km_%s_%s_%s_%s%s.pdf", ct(), .feature_tag(input$feature),
-                                  input$km_tabset, input$endpoint, .tau_tag(res())),
+    filename = function() sq_export_name(res(), "km", cohort = input$km_tabset),
     content  = function(file) km_plot(res(), input$km_tabset, file = file)
   )
 
@@ -1974,16 +2077,32 @@ server <- function(input, output, session) {
                            if (length(co) == 1) "" else "s")
           return(e)
         }
+        # An empty score here is NOT an inconsistency, and until step 244 it was raised as
+        # one ("in the vocabulary but returned no values", status "error"). FEATURES_BY_CT
+        # is the union over EVERY cohort of the tissue, while `co` holds only the cohorts
+        # that record `ep`, so a gene carried only by an endpoint-inert cohort (SCANB is
+        # OS-only and measures 30,865 features to TCGA_BRCA's 20,560) is genuinely in the
+        # vocabulary and genuinely absent here. The Multiple genes tab already said so; this
+        # now says the same, from the same matrices get_feature() reads.
+        if (!length(.cohorts_carrying(feat, co, kind))) {
+          e$status <- "absent"
+          e$msg <- sprintf(
+            "'%s' is in this tissue's %s feature list but is not measured in any of the %d cohort%s that carry %s.",
+            feat, KIND_LABEL[[kind]], length(co), if (length(co) == 1) "" else "s", ep)
+          return(e)
+        }
         r <- tryCatch({
           score <- get_feature(feat, cohorts = co, kind = kind)
-          # feat IS in this tissue's vocabulary (checked immediately above), so an empty
-          # score here is an inconsistency between the vocabulary and the matrices, not a
-          # legitimate "no data" outcome. Raise it onto the panel.
+          # .cohorts_carrying() above found a carrier, so an empty score now IS an
+          # inconsistency between the two reads of the same /features list. Raise it.
           if (!length(score))
             stop(sprintf("'%s' is in the %s vocabulary for %s but returned no values",
                          feat, kind, ct))
-          with_feature(get_survival(score, endpoint = ep, cohorts = co,
-                                    adjust_strata = strat, max_followup = tau),
+          # with_absent(): the panel note names a cohort that does not measure the feature
+          # (step 244) instead of falling back to "no usable data for this query".
+          with_feature(with_absent(get_survival(score, endpoint = ep, cohorts = co,
+                                                adjust_strata = strat, max_followup = tau),
+                                   setdiff(co, .cohorts_carrying(feat, co, kind)), feat, kind),
                        sprintf("%s (%s)", feat, KIND_LABEL[[kind]]))
         }, error = function(err) err)
         if (inherits(r, "error")) {
@@ -2136,7 +2255,7 @@ server <- function(input, output, session) {
                         "Query failed in this panel - see the message below."
                       else e$msg))
         forest_plot(e$res, xrange = mq_xrange())
-      })
+      }, execOnResize = TRUE)
 
       # The SENTENCES come from mq_panel_notes() in R/plots.R; what is left here is styling.
       # That split is deliberate: the ZIP export pastes the same sentences into the CSV's
@@ -2230,10 +2349,9 @@ server <- function(input, output, session) {
             # here" message. validate() replaces the plot with the reason instead.
             validate(need(identical(e$status, "ok"), "Not estimated in this panel."))
             r <- e$res
-            validate(need(!is.null(r$per_cohort[[co_]]) && isFALSE(r$per_cohort[[co_]]$skipped),
-                          .cohort_note(co_, r)))
+            validate(need(km_drawable(r$per_cohort[[co_]]), .cohort_note(co_, r)))
             km_plot(r, co_)
-          })
+          }, execOnResize = TRUE)
         })
       }
     })
@@ -2260,8 +2378,7 @@ server <- function(input, output, session) {
                  selected = if ("viper" %in% k) "viper" else k[1])
   })
   output$mg_endpoint_ui <- renderUI({
-    selectInput("mg_endpoint", "Endpoint", endpoints_of(mg_ct()),
-                selected = default_endpoint_of(mg_ct()))
+    endpoint_select("mg_endpoint", endpoints_of(mg_ct()), selected = default_endpoint_of(mg_ct()))
   })
   output$mg_strata_ui <- renderUI({
     sv <- strata_vars_of(mg_ct(), input$mg_endpoint)
@@ -2316,8 +2433,9 @@ server <- function(input, output, session) {
           r <- tryCatch({
             score <- get_feature(g, cohorts = co, kind = kind)
             if (!length(score)) NULL else
-              with_feature(get_survival(score, endpoint = ep, cohorts = co,
-                                        adjust_strata = strat, max_followup = tau),
+              with_feature(with_absent(get_survival(score, endpoint = ep, cohorts = co,
+                                                    adjust_strata = strat, max_followup = tau),
+                                       setdiff(co, .cohorts_carrying(g, co, kind)), g, kind),
                            e$feature)
           }, error = function(err) err)
           if (inherits(r, "error")) {
@@ -2579,7 +2697,7 @@ server <- function(input, output, session) {
   output$rppa_panel <- renderPlot({
     p <- rppa_res(); req(!is.null(p), identical(p$status, "ok"))
     rppa_panel_plot(p)
-  }, res = 96)
+  }, res = 96, execOnResize = TRUE)
 
   output$rp_dl_ui <- renderUI({
     if (is.null(input$rp_run) || input$rp_run == 0) return(NULL)
@@ -2639,8 +2757,10 @@ server <- function(input, output, session) {
       i <- .i
       output[[paste0("rppa_km_", i)]] <- renderPlot({
         est <- .rppa_est(); req(length(est) >= i)
-        km_plot(est[[i]]$res, est[[i]]$res$cohorts[1] %||% rppa_cohort_for(rp_ct()))
-      }, res = 96)
+        rr <- est[[i]]$res; co <- rr$cohorts[1] %||% rppa_cohort_for(rp_ct())
+        validate(need(km_drawable(rr$per_cohort[[co]]), .cohort_note(co, rr)))
+        km_plot(rr, co)
+      }, res = 96, execOnResize = TRUE)
     })
   }
 

@@ -188,6 +188,18 @@ tn_estimable <- function(tn) {
   names(Filter(function(x) identical(x$status, "ok"), tn$per_cohort))
 }
 
+# The sentence that leads the notes when NO selected cohort can be drawn, so the panel is
+# not shown at all (step 244). tn_notes() gives the reasons per cohort, but nothing said
+# that a figure was missing: on MC2R the reader saw a line of reasons beside a forest with
+# no panel, and read it as no explanation. NULL when anything draws, so it cannot sit
+# beside a panel that is there. Since step 245 it prints under the app's "Tumour vs matched
+# adjacent normal" heading, so it names the plot by that heading rather than repeating it.
+tn_absent_lead <- function(tn) {
+  stopifnot(inherits(tn, "tumor_normal"))
+  if (length(tn_estimable(tn))) return(NULL)
+  "No plot is drawn for this query, because no selected cohort can supply one."
+}
+
 # The sentence that keeps this panel from being read as an outcome result. Stated as a
 # constant, not typed into app.R, so a test can assert the app still shows it.
 TN_CAPTION <- paste("Tumour vs the same patient's own normal tissue. Context for the gene,",
@@ -230,9 +242,13 @@ tn_notes <- function(tn) {
     say("unlabelled",
         "%s does not label tumour vs normal (sample ids are not TCGA barcodes), so it cannot be compared here.",
         "%s do not label tumour vs normal (sample ids are not TCGA barcodes), so they cannot be compared here."),
-    say("absent",
-        "%s does not carry this feature.",
-        "%s do not carry this feature."))
+    # Named WITH the feature and the kind of data since step 244: "does not carry this
+    # feature" named neither, and was the only explanation a reader got for a missing panel.
+    # The clause is .absent_phrase(), shared with the KM tab's note.
+    if (any(st == "absent")) {
+      who <- co[st == "absent"]
+      paste0(.absent_phrase(.tn_join(who), length(who), tn$feature, tn$kind), ".")
+    })
   unknown <- setdiff(st, c("ok", "no_normals", "no_pairs", "unlabelled", "absent"))
   if (length(unknown))
     stop("tn_notes(): unknown status '", paste(unknown, collapse = "', '"), "'")

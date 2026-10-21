@@ -321,17 +321,38 @@ get_survival <- function(score,
     # (Under an unstratified fit d2 IS d, so this only ever differs where a stratifier is
     # missing on some rows: TCGA_BRCA/DFS, 12 rows and 1 event. METABRIC happens to have
     # no gap, which is why the divergence stayed invisible.)
+    #
+    # THE SPLIT CAN COLLAPSE WHEN THE SCORE IS NOT CONSTANT (step 244). `>= median` puts
+    # every patient in "high" exactly when the median equals the minimum, which is when half
+    # or more of the cohort shares the lowest value: an undetected gene on a zero-inflated
+    # mRNA matrix (MC2R in SCANB, 1,722 of 3,273 on the floor). The constant-score guard above
+    # cannot see it, and survdiff() then aborted the WHOLE query. The Cox above is unaffected,
+    # since it fits the continuous score, so the cohort is NOT skipped and still pools; only
+    # the KM view and its log-rank are withheld, and km_note says why, with the count. The
+    # test is the one-group condition itself, not a balance threshold: a lopsided split that
+    # still has two groups draws as before, so no result that drew before 244 changes.
     grp <- factor(ifelse(d2$score >= median(d2$score), "high", "low"),
                   levels = c("low", "high"))
-    sd_ <- survdiff(Surv(time, event) ~ grp, data = d2)
-    lr_p <- pchisq(sd_$chisq, df = length(sd_$n) - 1, lower.tail = FALSE)
+    km <- NULL; lr_p <- NA_real_; km_note <- NULL
+    if (length(unique(grp)) < 2L) {
+      km_note <- sprintf(paste0(
+        "the score is at its lowest value in %s of %s patients, so a median split cannot ",
+        "form two groups. No Kaplan-Meier curve or log-rank test is drawn. The hazard ratio ",
+        "uses the continuous score and is not affected"),
+        format(sum(d2$score == min(d2$score)), big.mark = ","),
+        format(nrow(d2), big.mark = ","))
+    } else {
+      sd_ <- survdiff(Surv(time, event) ~ grp, data = d2)
+      lr_p <- pchisq(sd_$chisq, df = length(sd_$n) - 1, lower.tail = FALSE)
+      km <- survfit(Surv(time, event) ~ grp, data = d2)
+    }
 
     per[[coh]] <- list(
       n = nrow(d2), events = sum(d2$event == 1),
       logHR = logHR, se = se, HR = exp(logHR), p = p,
       ph_p = ph_p, ph_violated = !is.na(ph_p) && ph_p < PH_ALPHA,
       strata_adjusted = use_strat, strata_var = if (use_strat) strat_var else NA_character_, logrank_p = lr_p,
-      km = survfit(Surv(time, event) ~ grp, data = d2),
+      km = km, km_note = km_note,
       data = d2, skipped = FALSE)
   }
 

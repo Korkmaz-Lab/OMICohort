@@ -41,11 +41,27 @@
 
 # Full y-axis wording for an endpoint code (avoids the redundant "DFS survival ...").
 .endpoint_label <- function(ep) {
-  switch(ep,
-         OS  = "Overall survival probability",
-         DFS = "Disease-free survival probability",
-         DSS = "Disease-specific survival probability",
-         sprintf("%s survival probability", ep))
+  if (ep %in% names(ENDPOINT_NAME)) paste(ENDPOINT_NAME[[ep]], "probability")
+  else sprintf("%s survival probability", ep)
+}
+
+# The one declaration of what each endpoint code stands for (step 244). The KM y-axis above
+# and the endpoint selectors read it, so the axis and the dropdown cannot name one endpoint
+# two ways. "DFS" is the registry's slot name and it is filled per source (TCGA PFI, METABRIC
+# RFS, the GEO series' own relapse or disease-free field); the label is the slot's, as the
+# axis has always printed it.
+ENDPOINT_NAME <- c(OS = "Overall survival", DFS = "Disease-free survival",
+                   DSS = "Disease-specific survival")
+
+# Selector choices: the VALUES stay the codes, which every input$endpoint reader compares
+# against, and the visible labels carry the full name, so the chip line under the selector
+# can use the short codes. An unknown code stops rather than showing a bare abbreviation.
+endpoint_choices <- function(eps) {
+  unk <- setdiff(eps, names(ENDPOINT_NAME))
+  if (length(unk))
+    stop("endpoint_choices(): no full name declared for ", paste(unk, collapse = ", "),
+         ". Add it to ENDPOINT_NAME.")
+  stats::setNames(eps, sprintf("%s (%s)", eps, ENDPOINT_NAME[eps]))
 }
 
 # Corner annotation for a KM panel. Split out from km_plot() so the wording is testable
@@ -129,8 +145,9 @@ KM_COL <- c(low = "#2c7fb8", high = "#d95f0e")
 # curves alone -- not because the counts are optional information.
 km_plot <- function(res, cohort, file = NULL, risk_table = TRUE) {
   r <- res$per_cohort[[cohort]]
-  if (is.null(r) || isTRUE(r$skipped) || is.null(r$km))
-    stop(sprintf("no KM fit for cohort '%s'", cohort))
+  if (!km_drawable(r))
+    stop(sprintf("no KM fit for cohort '%s'%s", cohort,
+                 if (!is.null(r$km_note)) paste0(": ", r$km_note) else ""))
   s <- km_size_in()
   opened <- .open_dev(file, width = s[["width"]], height = s[["height"]])
   # Capture BEFORE layout()/par() are touched, and restore before closing -- par() with no
@@ -491,13 +508,45 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
 # A diamond drawn from an unidentified tau^2 must not look like any other diamond. The
 # figure is the artifact most likely to be read alone, so the caveat travels ON it --
 # same reason the horizon is on the x-axis and the PH verdict is in the KM corner.
-.pooled_mlab <- function(n, ev, i2, p, k) {
+#
+# No p in this label since step 254. It used to share the second line with I^2, where it
+# read as a heterogeneity test; it is the POOLED ESTIMATE's test against 1 (metafor's pval,
+# not QEp), so it is now drawn under the pooled HR [95% CI] it belongs to. See
+# .pooled_p_label() below.
+.pooled_mlab <- function(n, ev, i2, k) {
   lines <- list(sprintf("Pooled (REML):  n=%d, ev=%d", n, ev),
-                bquote(I^2 * .(sprintf(" = %.0f%%,  p = %.2g", i2, p))))
+                bquote(I^2 * .(sprintf(" = %.0f%%", i2))))
   if (k < POOL_MIN_K)
     lines <- c(lines, list(bquote("! " * tau^2 *
                                   .(sprintf(" not identified (k=%d < %d)", k, POOL_MIN_K)))))
   lines
+}
+
+# The pooled p, on its own line under the pooled HR [95% CI] in the annotation column (step
+# 254). Formatted by fmt_p() like every other p in the tool, so the figure and the tables
+# print one number the same way. A non-finite p would put "p = " or "p = NaN" under a
+# diamond, a claim the fit never made, so it stops instead.
+.pooled_p_label <- function(p) {
+  if (length(p) != 1L || !is.finite(p))
+    stop(".pooled_p_label(): need one finite p, got '", paste(p, collapse = ", "), "'")
+  sprintf("p = %s", fmt_p(p))
+}
+
+# Where that line goes: one text line under the pooled HR [95% CI] (y = -1, metafor's fixed
+# summary row), at the type's own line spacing: par("cin") is the character cell in inches,
+# scaled by metafor's resolved cex and by lheight, and converted to user units on the plot just
+# drawn, so this must be called on that device. Step 254 put it halfway to the axis instead,
+# which is a fraction of a ROW; the manuscript draws its forests with rows closer together than
+# the app, and there the halfway point left the two lines touching (step 256). A line spacing
+# belongs to the type, so the pair reads as one two-line annotation in every geometry. It sits
+# right of the axis whatever its height, inside the column the gutters were fitted for, so on a
+# short forest it may dip a few points below the axis line without meeting anything there. A
+# stop on "below the plot region" was tried and would have broken the app's forest on a phone
+# (k = 2 at 5.2in); tests/test_forest_label_fit.R instead reads every word's box off rendered
+# PDFs at phone, export, print and wide-screen geometry and asserts the line touches no text.
+.pooled_p_y <- function(z) {
+  line_in <- graphics::par("cin")[2] * z$cex * graphics::par("lheight")
+  -1 - line_in * diff(graphics::par("usr")[3:4]) / graphics::par("pin")[2]
 }
 
 # Stack the label's lines into one plotmath expression, LEFT-ALIGNED.
@@ -906,22 +955,40 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
 
   if (length(est) >= 2) {
     m <- .forest_rma(yi, vi)
-    mlines <- .pooled_mlab(sum(n), sum(ev), m$I2, m$pval, length(est))
+    mlines <- .pooled_mlab(sum(n), sum(ev), m$I2, length(est))
     mlab   <- .stack_left(mlines)
     base <- list(m, transf = exp, refline = 1, slab = slab,
                  xlab = xlab, header = head, mlab = mlab)
     z <- do.call(metafor::forest, c(base, .gutter(base, ax, slab)))
     z$mlab <- mlab; z$mlab_lines <- mlines
+    # The pooled p, under the pooled HR [95% CI] and right-aligned with it: metafor draws that
+    # column at textpos[2] with pos = 2, and so does this. It must never be wider than the
+    # line above it, because then it sits inside the column both gutters were already fitted
+    # for, on the single-axis and the shared-axis path alike. fmt_p()'s widest output cannot
+    # exceed it (tests/test_forest_label_fit.R measures the extremes); checked here as well
+    # because being wrong would draw text over the data.
+    plab <- .pooled_p_label(m$pval)
+    pann <- .forest_annot(m$beta[1], m$se)
+    if (graphics::strwidth(plab, units = "inches", cex = z$cex) >
+        graphics::strwidth(pann, units = "inches", cex = z$cex))
+      stop(sprintf("forest_plot(): the pooled p line '%s' is wider than the pooled HR line '%s' above it",
+                   plab, pann))
+    z$pooled_p <- plab; z$pooled_p_y <- .pooled_p_y(z)
+    graphics::text(z$textpos[2], z$pooled_p_y, plab, pos = 2, cex = z$cex)
   } else {
     # Single cohort: no pooling — plot the lone estimate with its normal CI.
     base <- list(x = yi, vi = vi, transf = exp, refline = 1,
                  slab = slab, xlab = xlab, header = head)
     z <- do.call(metafor::forest, c(base, .gutter(base, ax, slab)))
-    z$mlab <- NULL; z$mlab_lines <- NULL
+    z$mlab <- NULL; z$mlab_lines <- NULL; z$pooled_p <- NULL; z$pooled_p_y <- NULL
   }
   # Carried out for the same reason mlab is: the per-cohort labels' fit is a property of the
   # drawn geometry, and a test that rebuilds them measures a string the figure need not hold.
   z$slab <- slab
+  # The plot region as DRAWN, for the same reason: on.exit() restores the caller's margins, so
+  # a caller reading par("pin") after this returns measures a different region. Heights in user
+  # units only convert to inches through these (tests/test_forest_label_fit.R, step 256).
+  z$pin <- graphics::par("pin"); z$usr <- graphics::par("usr")
   # Carried out on the layout for the same reason mlab and slab are: what the figure DREW,
   # not what it could have drawn. NULL is the assertable difference between "suppressed"
   # and "the string happened to come out empty".
@@ -1045,6 +1112,55 @@ FEATURE_NAME_BUDGET <- 80L
   sprintf("%s__trunc%d", substr(s, 1, FEATURE_NAME_BUDGET), nchar(s))
 }
 
+# The Single query result records the QUERY it answers (step 253). app.R attaches it at Run,
+# from the same inputs the fit used, so everything that names a file can read it off the
+# result instead of off the live selectors.
+#
+# Why. The Forest, KM and Table downloads built their file names from input$cancer_type,
+# input$feature and input$endpoint at DOWNLOAD time while the content came from res(), the
+# last run. Change a selector without pressing Run, download, and the file carried the new
+# selection's name over the old run's numbers. A file name outlives the session that made it,
+# so it is the worst place to be confidently wrong. tn_export_name() and every other tab's
+# export already named the file from the result; these three were the last.
+#
+# The cohorts are checked against the tissue: a result whose cohorts are not all of
+# `cancer_type` would be labelled with a tissue it was not run on.
+with_query <- function(res, cancer_type, feature_id) {
+  .require_survresult(res, "with_query")
+  if (length(cancer_type) != 1L || !nzchar(cancer_type) ||
+      length(feature_id) != 1L || !nzchar(feature_id))
+    stop("with_query(): need one cancer type and one feature, got ",
+         length(cancer_type), " and ", length(feature_id))
+  stray <- setdiff(names(res$per_cohort), cohorts_for(cancer_type))
+  if (length(stray))
+    stop("with_query(): cohort(s) ", paste(stray, collapse = ", "), " are not ", cancer_type,
+         " cohorts, so this result cannot be labelled as a ", cancer_type, " query")
+  attr(res, "query") <- list(cancer_type = cancer_type, feature_id = feature_id)
+  res
+}
+
+# The three Single query file names, from the result alone. `cohort` is the KM's, and must be
+# a cohort of this result: the KM content is drawn for the same cohort, so name and file agree.
+sq_export_name <- function(res, what, cohort = NULL) {
+  .require_survresult(res, "sq_export_name")
+  q <- attr(res, "query")
+  if (is.null(q))
+    stop("sq_export_name(): the result carries no query; app.R attaches one with with_query() ",
+         "at Run. Naming the file from the live selectors instead is the defect this replaced.")
+  ct <- .safe_name(q$cancer_type); ft <- .feature_tag(q$feature_id)
+  ep <- .safe_name(res$endpoint); tau <- .tau_tag(res)
+  switch(what,
+    forest = sprintf("forest_%s_%s_%s%s.pdf", ct, ft, ep, tau),
+    table  = sprintf("survtable_%s_%s_%s%s.csv", ct, ft, ep, tau),
+    km = {
+      if (length(cohort) != 1L || !(cohort %in% names(res$per_cohort)))
+        stop("sq_export_name(): KM cohort '", paste(cohort, collapse = ", "),
+             "' is not a cohort of this result")
+      sprintf("km_%s_%s_%s_%s%s.pdf", ct, ft, .safe_name(cohort), ep, tau)
+    },
+    stop("sq_export_name(): unknown export '", what, "'. Known: forest, table, km"))
+}
+
 # Follow-up-horizon choices for the app's selector, for one cancer type.
 #
 # Returns list(choices = <named character vector for selectInput>, selected = <default>).
@@ -1116,6 +1232,34 @@ KIND_LABEL <- c(viper = "VIPER TF activity", expr = "mRNA",
 #   res <- with_feature(get_survival(get_feature("ESR1", kind="viper")),
 #                       sprintf("ESR1 (%s)", KIND_LABEL[["viper"]]))
 with_feature <- function(res, feature) { attr(res, "feature") <- feature; res }
+
+# The selected cohorts whose matrix does not carry the queried feature (step 244). They never
+# reach get_survival() -- get_feature() returns nothing for them -- so the result alone cannot
+# say why they are missing, and .cohort_note() used to fall through to "no usable data for
+# this query" for every one of them: 57% of breast mRNA symbols, 89% of ovarian ones. The
+# caller, which knows the feature and the kind, records them here.
+with_absent <- function(res, absent, feature, kind) {
+  if (!(kind %in% names(KIND_LABEL)))
+    stop("with_absent(): no sentence for kind '", kind, "'. Known: ",
+         paste(names(KIND_LABEL), collapse = ", "))
+  attr(res, "absent") <- list(cohorts = absent, feature = feature, kind = kind)
+  res
+}
+
+# The clause naming what a cohort does not measure, shared by the KM note and the tumour vs
+# normal note so the two say it the same way. `who` is already joined; `n` picks the verb.
+.absent_phrase <- function(who, n, feature, kind) {
+  v <- function(one, many) if (n == 1L) one else many
+  switch(kind,
+    expr  = sprintf("%s %s not measure %s mRNA", who, v("does", "do"), feature),
+    viper = sprintf("%s %s no VIPER TF activity score for %s", who, v("has", "have"), feature),
+    sprintf("%s %s no %s data for %s", who, v("has", "have"), KIND_LABEL[[kind]], feature))
+}
+
+# Whether a cohort entry has a curve to draw. Not the same question as "was it fitted":
+# since step 244 a fitted cohort whose median split collapses keeps its Cox and has no KM.
+# Every KM gate asks this, so a tab, a download and an export cannot disagree.
+km_drawable <- function(r) !is.null(r) && isFALSE(r$skipped) && !is.null(r$km)
 
 # Tidy per-cohort + pooled HR/CI table for a survresult - the exact numbers behind the
 # forest (so the "TCGA crosses 1, pooled doesn't" story is documented, not eyeballed).
@@ -1356,30 +1500,59 @@ isTRUE_vec <- function(x) !is.na(x) & x
   if (length(eps) && !(r$endpoint %in% eps))
     return(sprintf("%s carries no %s data (endpoints: %s).", co, r$endpoint,
                    paste(eps, collapse = ", ")))
+  ab <- attr(r, "absent")
+  if (!is.null(ab) && co %in% ab$cohorts)
+    return(paste0(.absent_phrase(co, 1L, ab$feature, ab$kind), ", so it is not in this result."))
   ent <- r$per_cohort[[co]]
   if (!is.null(ent) && isTRUE(ent$skipped)) return(sprintf("%s: %s.", co, ent$reason))
+  if (!is.null(ent) && !is.null(ent$km_note)) return(sprintf("%s: %s.", co, ent$km_note))
   sprintf("%s: no usable data for this query.", co)
 }
 
-# The line under the cohort chips. It states the REASON and a COUNT only -- the cohort
-# names are already on screen as struck-through chips, and repeating twelve of them in
-# prose was the wall this presentation exists to remove. Grouped by what each one does
-# carry, read from the registry, never hand-listed.
+# The line under the cohort chips. Until step 244 it stated a reason and a COUNT only ("1
+# carries OS only"), on the grounds that the chips already name the cohorts. The author
+# reversed that on 2026-10-20: the count did not say WHICH cohort, and the codes were never
+# spelled out. It now names every struck cohort, grouped by what it does record, and ends on
+# the endpoint that brings them back. Read from the registry, never hand-listed. The codes
+# stay short because the endpoint selector spells them out (endpoint_choices()).
+#
+# It says "not included", not "struck through" (step 245): the line describes the query, not
+# the paint, and a reader who has not met the term should not need it. The way back is a
+# CHOICE between endpoints, so several are joined with "or"; "and" read as needing both.
 .excluded_reason_line <- function(dead, endpoint, registry = COHORTS) {
-  carries <- vapply(dead, function(co) {
-    e <- cohort_endpoints(co, registry)
-    if (!length(e)) "none" else paste(e, collapse = "/")
+  eps <- lapply(dead, cohort_endpoints, registry = registry)
+  key <- vapply(eps, paste, character(1), collapse = "/")
+  join <- function(x, w = "and") if (length(x) == 1L) x else
+    paste(paste(utils::head(x, -1L), collapse = ", "), w, utils::tail(x, 1L))
+  join_or <- function(x) join(x, "or")
+  groups <- vapply(unique(key), function(k) {
+    who <- dead[key == k]; e <- eps[[match(k, key)]]
+    what <- if (!length(e)) "no survival endpoint"
+            else if (length(e) == 1L) paste("only", e) else join(e)
+    sprintf("%s %s %s", join(who), if (length(who) == 1L) "records" else "record", what)
   }, character(1))
-  n <- table(carries)
-  parts <- vapply(names(n), function(k) {
-    v <- as.integer(n[[k]])
-    if (identical(k, "none")) sprintf("%d declare no endpoint", v)
-    else sprintf("%d carr%s %s only", v, if (v == 1) "ies" else "y", k)
-  }, character(1))
-  # ASCII dash, not an em dash: the project copy of this file is under a non-ASCII string
-  # literal ban (tests/test_pdf_fonts.R) and the two copies must stay character-identical.
-  sprintf("Struck through: not offered for %s - %s.", endpoint,
-          paste(parts, collapse = ", "))
+  one <- length(dead) == 1L
+  # One group reads as one sentence about those cohorts; several share an opening clause.
+  lead <- if (length(groups) == 1L) {
+    e <- eps[[1L]]
+    sprintf("%s %s not included: %s %s %s%s.", join(dead), if (one) "is" else "are",
+            if (one) "it" else "they", if (one) "records" else "record",
+            if (!length(e)) "no survival endpoint" else if (length(e) == 1L) paste("only", e)
+            else join(e),
+            if (length(e)) paste(", not", endpoint) else "")
+  } else sprintf("Not included, because they do not record %s: %s.", endpoint,
+                 paste(groups, collapse = "; "))
+  # The way back: an endpoint every includable cohort records. A cohort declaring none can
+  # never be included, so it is left out of the choice rather than promised a way in.
+  inc <- dead[lengths(eps) > 0L]
+  common <- if (length(inc)) Reduce(intersect, eps[lengths(eps) > 0L]) else character(0)
+  act <- if (!length(inc)) NULL
+         else if (length(common)) sprintf("Choose %s to include %s.", join_or(common),
+                                          if (length(inc) == length(dead))
+                                            if (one) "it" else "them"
+                                          else join(inc))
+         else "Each can be included by choosing an endpoint it records."
+  paste(c(lead, act), collapse = " ")
 }
 
 # %||% is defined above (used here too, before its file position is irrelevant at call time).
@@ -1579,7 +1752,7 @@ mq_export_dir <- function(panels, dir) {
     f <- sprintf("forest_%s_%s_%s%s.pdf", e$ct, ftag, e$endpoint, tag)
     forest_plot(e$res, file = file.path(dir, f), xrange = xr)
     out <- c(out, f)
-    for (co in names(Filter(function(x) isFALSE(x$skipped), e$res$per_cohort))) {
+    for (co in names(Filter(km_drawable, e$res$per_cohort))) {
       f <- sprintf("km_%s_%s_%s_%s%s.pdf", e$ct, ftag, co, e$endpoint, tag)
       km_plot(e$res, co, file = file.path(dir, f))
       out <- c(out, f)
@@ -2143,53 +2316,100 @@ kind_choice_html <- function(kinds, labels, infos = KIND_INFO) {
     if (k %in% names(infos)) info_note_html(labels[[k]], infos[[k]]) else .html_escape(labels[[k]]),
     character(1), USE.NAMES = FALSE)
 }
-# ---- how to read the FIGURES themselves (2026-08-30, step 117) -----------------------
-# The Guide tab explains all of this at length. This is the other half of that item: a
-# reader with a forest in front of them should not have to leave the result to find out what
-# the diamond is. The Guide carries the NARRATIVE; these three carry the DEFINITIONS, at the
-# figure, where the question is actually asked.
+# ---- how to read the FIGURES themselves (2026-08-30, step 117; rewritten step 252) ------
+# The Guide tab explains all of this at length, and most readers never open it: they run a
+# query and read the result. So what a reader needs to interpret a figure has to be AT the
+# figure, in concentrated form. Step 117 put one capped hover on each (two sentences, 220
+# characters), which held definitions but not interpretation. The author asked on 2026-10-20
+# (step 252) for the second half: what is significant, what to look at, and, on the KM, which
+# of its two p values to go by.
 #
-# Three, because there are three things on the page a reader can misread independently, and
-# each of the three has a specific misreading worth spending a tooltip on:
+# That does not fit in a hover, and the cap is right about hovers: a popup vanishes when the
+# pointer moves and cannot be selected. So "How to read this" is now a CLICK-TO-OPEN box
+# (<details>), which stays open, can be read at length and copied, and needs no hover. The cap
+# survives as a cap on each POINT: every point is one idea at most INFO_MAX_SENTENCES
+# sentences and INFO_MAX_CHARS characters, and a figure has at most FIGURE_HELP_MAX_POINTS of
+# them. The box is a summary, not the Guide.
 #
-#   forest -- that a wide interval crossing 1 is a small effect rather than an unresolved one;
-#   km     -- that the curves ARE the model. They are not: the split is at the median and the
-#             HR printed beside them is the continuous Cox on every patient, so the log-rank
-#             p and the HR are answering two different questions about the same cohort. This
-#             is the one that has actually confused people, and it is why the KM note names
-#             both numbers rather than explaining the curve;
-#   hr     -- that HR is a probability, or a risk over the whole study. It is per SD of the
-#             score, and it is an average over follow-up -- which is exactly the assumption
-#             results/rmst_sensitivity.csv was written to test, and it is stated here rather
-#             than only in a document a web reader never opens.
+# Each point must hold on every page the figure appears on: "forest" on Single and Multiple
+# query; "km" on Single query, the Multiple query drawer and the Protein (RPPA) tab, which has
+# no pooling; "hr" under the Single query, Multiple query, Multiple genes and RPPA results,
+# whose columns differ, so it names no column the Multiple genes table lacks.
 #
-# Every one goes through info_note_html(), so the 2-sentence / 220-character cap is enforced
-# on them the same as on every other explanation in this file. That cap is why these say one
-# thing each instead of three: a tooltip is not the Guide.
+# Non-ASCII characters (I-squared, tau-squared, the curly quotes) are written as \u escapes.
+# tests/test_pdf_fonts.R keeps every literal in this file ASCII because pdf() silently drops
+# glyphs it cannot draw. These strings never reach a device: figure_help_html() is their only
+# reader, and it writes HTML, where the characters are safe.
+#
+# Named FIGURE_HELP, not *_INFO: the *_INFO convention is for single hover strings, and
+# tests/test_info_hover.R enumerates it as such.
 FIGURE_HELP_LABEL <- "How to read this"
+FIGURE_HELP_MAX_POINTS <- 6L
 
-FIGURE_INFO <- c(
-  forest = paste(
-    "One row per cohort: the square is that cohort's hazard ratio and the line its 95% CI;",
-    "the diamond is the pooled estimate. An interval crossing 1 is unresolved, not small."),
-  km = paste(
-    "The curves split each cohort at its median score, but the HR quoted with them is the",
-    "continuous Cox over every patient. The log-rank p tests the split, not that HR."),
-  hr = paste(
-    "Per one SD of the score, so 1.20 is 20% more hazard per SD and above 1 is worse.",
-    "It averages the whole follow-up, so where proportional hazards is rejected it is not",
-    "one constant ratio.")
+FIGURE_HELP <- list(
+  forest = c(
+    paste("Each row is one cohort: the square is its hazard ratio per SD, larger for a cohort",
+          "with more weight, and the line is its 95% confidence interval."),
+    paste("Right of the line at 1, a higher score goes with a worse outcome; left of it, with a",
+          "better one. A cohort whose interval crosses 1 cannot tell on its own, which is not the",
+          "same as a small effect."),
+    paste("The diamond is all cohorts pooled, and the p under its hazard ratio tests it against 1.",
+          "It is significant when it does not touch 1, which is the same as that p being below 0.05."),
+    paste("I\u00b2 is how much the cohorts disagree beyond chance; when it is high, the diamond may",
+          "describe no single cohort well. \u201c\u03c4\u00b2 not identified\u201d means too few",
+          "cohorts were pooled to measure that."),
+    paste("For a TF, the line under the plot ranks it among every TF scanned in this tissue. Its",
+          "q value, not this p, allows for all of those tests.")),
+  km = c(
+    paste("This cohort's patients are split at the median score into a higher and a lower half,",
+          "the two curves named in the legend."),
+    paste("A curve is the share of its half who have not yet had the event, over months of",
+          "follow-up. The half whose curve drops faster has the worse outcome."),
+    paste("The numbers under the plot are the patients still followed at each time. Where they",
+          "are few, the curve is least reliable."),
+    paste("The corner prints two p values. The log-rank p tests whether the two curves differ;",
+          "below 0.05, they differ by more than chance would explain."),
+    paste("The corner's HR/SD and its p are the main result: the Cox model on every patient's",
+          "actual score, without the split. If the two p values disagree, go by HR/SD."),
+    paste("A corner line marked \u201c!\u201d means the risk ratio between high and low scores",
+          "changed during follow-up, so HR/SD is its average over time. Crossing curves often show it.")),
+  hr = c(
+    paste("HR is per one SD of the score: 1.20 means a 20% higher risk of the event at any given",
+          "time for each SD higher. Above 1 is a worse outcome, below 1 a better one."),
+    paste("p tests whether the HR differs from 1, which means no association; below 0.05 is the",
+          "usual threshold. If the 95% CI includes 1, the data cannot rule out no association."),
+    paste("A \u201c!\u201d in the PH column means the risk ratio changed during follow-up, so the",
+          "HR is an average over time rather than one constant value."))
 )
 
-# The line that carries the marker. `which` is checked against the declared set rather than
-# defaulted, so a typo is a stop() at render time and not a figure that silently loses its
-# help -- the failure mode of the whole mechanism is a marker that is simply absent, which
-# looks identical to a page that never had one.
-figure_help_html <- function(which, infos = FIGURE_INFO, label = FIGURE_HELP_LABEL) {
-  if (length(which) != 1L || !(which %in% names(infos)))
+# One point, held to the hover's cap. The same two limits and the same counter as
+# info_note_html(), so a point and a hover are the same size of idea.
+.figure_help_point <- function(which, x) {
+  if (length(x) != 1L || !nzchar(trimws(x)))
+    stop("FIGURE_HELP$", which, ": every point must be one non-empty string")
+  if (nchar(x) > INFO_MAX_CHARS)
+    stop(sprintf("FIGURE_HELP$%s: a point is %d characters (limit %d): %s",
+                 which, nchar(x), INFO_MAX_CHARS, x))
+  if (.info_sentences(x) > INFO_MAX_SENTENCES)
+    stop(sprintf("FIGURE_HELP$%s: a point is %d sentences (limit %d): %s",
+                 which, .info_sentences(x), INFO_MAX_SENTENCES, x))
+  sprintf("<li>%s</li>", .html_escape(x))
+}
+
+# The box. `which` is checked against the declared set rather than defaulted, so a typo is a
+# stop() at render time and not a figure that silently loses its help.
+figure_help_html <- function(which, helps = FIGURE_HELP, label = FIGURE_HELP_LABEL) {
+  if (length(which) != 1L || !(which %in% names(helps)))
     stop("figure_help_html(): unknown figure '", paste(which, collapse = ", "),
-         "'. Declared: ", paste(names(infos), collapse = ", "))
-  sprintf('<p class="fig-help">%s</p>', info_note_html(label, infos[[which]]))
+         "'. Declared: ", paste(names(helps), collapse = ", "))
+  pts <- helps[[which]]
+  if (!length(pts) || length(pts) > FIGURE_HELP_MAX_POINTS)
+    stop(sprintf("FIGURE_HELP$%s has %d points (1 to %d allowed)", which, length(pts),
+                 FIGURE_HELP_MAX_POINTS))
+  sprintf('<details class="fig-help"><summary>%s</summary><ul>%s</ul></details>',
+          .html_escape(label),
+          paste(vapply(pts, function(x) .figure_help_point(which, x), character(1)),
+                collapse = ""))
 }
 
 # ---- the IDH stratum: what strata(idh) does and does not fix (2026-08-28, step 98) ----
@@ -2270,7 +2490,7 @@ idh_stratum_note <- function(ct, ep = NULL) {
 # is a verdict most readers never see.
 CNA_MEDIATION_INFO <- paste(
   "Compares the hazard ratio before and after adjusting for the gene's own copy number,",
-  "to test whether the signal is just amplification. Breast only (Step F).")
+  "to test whether the signal is just amplification. Breast only.")
 
 # The mediation RULE moved here from app.R unchanged, and it is the reason this is a
 # function rather than a sprintf at the call site: it is a threshold rule producing a

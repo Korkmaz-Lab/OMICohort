@@ -190,17 +190,24 @@ ABOUT_TERMS <- list(
 # names above have no such second source and are untouched.
 ABOUT_PEOPLE <- list(
   lab         = "Korkmaz Lab",
+  # THE LAB'S FORMAL NAME (step 249, the author's request on 2026-10-20). "Korkmaz Lab" is the
+  # name on the wordmark and stays as `lab`, checked against scripts/make_logo.py; the formal
+  # name is how the lab is written in the authors' affiliations (ABOUT_AFFILIATIONS[4]), and the
+  # page prints both as "Functional Genomics Lab (Korkmaz Lab)". tests/test_about_derived.R
+  # requires this to open one of ABOUT_AFFILIATIONS, so the two cannot name the lab differently.
+  lab_formal  = "Functional Genomics Lab",
   # THE RESEARCH CENTRE, added 2026-09-03 at the user's request. Its own field rather than
   # being folded into `institution`, for the reason the mark below gives: each of the three
   # identities on this page has its own mark, and each is checked against its own mark. Fold
   # two names into one string and the check on the pair becomes a check on a sentence.
   #
-  # NOT EXPANDED IN THE PROSE, and that is a decision. KUTTAM stands for the Koç University
-  # Research Center for Translational Medicine, and www/kuttam-1.png prints exactly that under
-  # the wordmark, on the same row of the same section. Writing it out again in the sentence
-  # above would be the page saying the same thing twice within one screen. The expansion is in
-  # the mark's `alt` instead, which is where a reader who cannot see the image will find it.
+  # WRITTEN OUT IN THE PROSE since step 249. Until then it was not, on the grounds that
+  # www/kuttam-1.png prints the full name under the wordmark a few lines down; the author
+  # reversed that on 2026-10-20, because the acronym alone tells a reader nothing and the mark
+  # is an image. `center_name` is the full name; tests/test_about_derived.R requires it to
+  # appear as "<center_name> (<center>)" in ABOUT_AFFILIATIONS and in the mark's `alt`.
   center      = "KUTTAM",
+  center_name = "Koç University Research Center for Translational Medicine",
   institution = "Koç University",
   # Supplied by the user on 2026-08-30. NAMED vector: the name is the visible link text and
   # the value is the href, and tests/test_about_derived.R asserts the page renders exactly
@@ -210,21 +217,22 @@ ABOUT_PEOPLE <- list(
     "Lab website"  = "https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/",
     "Lab on GitHub" = "https://github.com/Korkmaz-Lab"),
   contact     = "",                # e.g. "someone@university.edu"
-  # `affil` INDEXES ABOUT_AFFILIATIONS below, it does not repeat it. Closing board item (y)
-  # at step 226 meant giving each author the affiliations the manuscripts give them, and the
-  # manuscripts give them DIFFERENT ones: Karagöz carries 1 and 2, Korkmaz 2 and 3. A string
-  # per member would have put "Koç University Research Center for Translational Medicine
-  # (KUTTAM), Istanbul, Turkey" in the file twice, which is how one of two copies gets
-  # corrected. The order within a member follows the manuscripts' numbering.
+  # `affil` INDEXES ABOUT_AFFILIATIONS below, it does not repeat it. Each author carries a
+  # DIFFERENT set: Karagöz 1, 2 and 4, Korkmaz 2, 3 and 4 (review decision G04, 2026-10-20;
+  # until then 1 and 2, and 2 and 3). A string per member would put the two shared entries in
+  # the file twice, which is how one of two copies gets corrected. The order within a member
+  # follows the list's numbering.
   members     = list(
     list(name = "Assist. Prof. Gozde Korkmaz", role = "Principal Investigator",
-         affil = c(2L, 3L)),
+         affil = c(2L, 3L, 4L)),
     list(name = "Arda Burak Karagöz",             role = "Development & Analysis",
-         affil = c(1L, 2L))
+         affil = c(1L, 2L, 4L))
   )
 )
 
-# THE THREE AFFILIATIONS THE MANUSCRIPTS CARRY, in their numbered order, added at step 226.
+# THE AUTHORS' AFFILIATIONS, in their numbered order. Added at step 226 as the three the
+# manuscripts then carried; four since review decision G04 (2026-10-20, step 247), which added
+# the Functional Genomics Lab as 4 and wrote the country as "Türkiye".
 #
 # Board item (y) opened at step 213 and sat open because it was a question rather than a
 # defect: `about_affiliation()` described the LAB that built the software, the manuscripts
@@ -234,36 +242,31 @@ ABOUT_PEOPLE <- list(
 # cites it from `CITATION.cff` would have been handed a different affiliation by each, with
 # nothing on either surface admitting the other exists.
 #
-# WHAT DID NOT CHANGE, and deliberately. The About page still says "Built in the Korkmaz Lab,
-# KUTTAM, Koç University", because that sentence is about the lab and is still true; a page
-# introducing a tool is not an author list. The lab line therefore survives as the no-argument
-# form below, and both forms are asserted, so neither can drift from what it describes.
+# THE LAB LINE IS A DIFFERENT STATEMENT and survives beside the author list: "Built in the
+# Functional Genomics Lab (Korkmaz Lab) at the Koç University Research Center for
+# Translational Medicine (KUTTAM)" is about where the tool was made, not where each author
+# works. It is the no-argument form below. Since step 249 the page ALSO lists each author's
+# affiliations, numbered as here, so the page and CITATION.cff say the same thing.
 #
 # KUTTAM IS EXPANDED HERE and is not expanded on the page. Those are different surfaces with
 # different readers: the page prints the mark with the full name under it twelve lines later,
 # so expanding it in the prose would say it twice on one screen, while a citation record has
 # no mark beside it and an unexpanded acronym in an affiliation field is not resolvable.
-# ONE WORD DIFFERS FROM THE MANUSCRIPTS, and it is deliberate. They print "Research Center OF
-# Translational Medicine" in all three places (preprint, supplementary, congress abstract). The
-# institution's own mark prints "KOÇ UNIVERSITY RESEARCH CENTER FOR TRANSLATIONAL MEDICINE",
-# read off www/kuttam-1.png, which is also what this file's own `alt` text has said since the
-# mark was added and what tests/test_reader_text_spelling.R already lists as the proper name.
-# So the project held both forms before step 226, the mark saying one and the manuscripts the
-# other, and nothing compared them until the affiliations were declared here and the spelling
-# test fired on the acronym's expansion.
+# "Research Center FOR Translational Medicine" is the institution's own name: its mark prints
+# "KOÇ UNIVERSITY RESEARCH CENTER FOR TRANSLATIONAL MEDICINE" (www/kuttam-1.png), this file's
+# `alt` text says the same, and tests/test_reader_text_spelling.R lists it as the proper name.
+# It matters most here because of what this list feeds: CITATION.cff and the Zenodo creator
+# records, which are permanent, machine-read, and the places a misnamed institution would be
+# copied onward from.
 #
-# "for" wins HERE because of what this list feeds: CITATION.cff and the Zenodo creator records,
-# which are permanent, machine-read, and the two places a misnamed institution would be copied
-# onward from. A frozen PDF stating a name slightly wrong is a thing in one document; the same
-# error in a deposit's creator metadata is the version other systems ingest.
-#
-# NOT PROPAGATED BACKWARDS. The manuscripts are frozen and the author wrote that front matter
-# by hand; this file does not get to edit them. manuscript/biorxiv_form.md records the
-# divergence so it is a decision at submission rather than a surprise.
+# This file does not edit the manuscripts. Their front matter is maintained separately, by
+# hand, and the review that set this list governs both; if the two ever disagree, the
+# manuscripts are corrected there, not by a change here. No postal codes, by decision.
 ABOUT_AFFILIATIONS <- c(
-  "Graduate School of Health Sciences, Koç University, Istanbul, Turkey",
-  "Koç University Research Center for Translational Medicine (KUTTAM), Istanbul, Turkey",
-  "School of Medicine, Koç University, Istanbul, Turkey")
+  "Graduate School of Health Sciences, Koç University, Istanbul, Türkiye",
+  "Koç University Research Center for Translational Medicine (KUTTAM), Istanbul, Türkiye",
+  "School of Medicine, Koç University, Istanbul, Türkiye",
+  "Functional Genomics Lab, Koç University, School of Medicine, Istanbul, Türkiye")
 
 # TWO QUESTIONS, ONE FUNCTION, because they are the same question asked of different subjects:
 # where does this work come from. Called with no argument it answers for the ORGANISATION, lab
@@ -271,13 +274,11 @@ ABOUT_AFFILIATIONS <- c(
 # with. Called with a member it answers for that AUTHOR, from ABOUT_AFFILIATIONS, which is what
 # the manuscripts print beside their names and what a citation record has to agree with.
 #
-# THE COMMENT THAT STOOD HERE UNTIL STEP 226 NAMED THREE CONSUMERS AND THERE WERE TWO. It said
-# "the People paragraph renders it", and the People paragraph does not call this: `.about_people()`
-# rebuilds the same sentence from the same three fields on its own, so the two have always been
-# separate code paths that happen to agree. That is worth knowing rather than quietly fixing,
-# because the comment's claim was the reason to believe the page could not drift from the
-# deposit, and it was not true. The guard is the test, not this paragraph: section 4 of
-# tests/test_release_files.R asserts the CFF carries what BOTH forms return.
+# ONE BUILDER FOR THE ORGANISATION LINE since step 249. Until then `.about_people()` rebuilt the
+# sentence from the same fields on its own, two code paths that a test kept in agreement
+# (recorded at step 226). Both now call .about_org(), the page with escaping and the lab name in
+# bold. Section 4 of tests/test_release_files.R still asserts the page shows what this returns
+# and the CFF carries each author's form.
 about_affiliation <- function(m = NULL, p = ABOUT_PEOPLE, a = ABOUT_AFFILIATIONS) {
   if (!is.null(m)) {
     if (is.null(m$affil) || !length(m$affil))
@@ -291,8 +292,25 @@ about_affiliation <- function(m = NULL, p = ABOUT_PEOPLE, a = ABOUT_AFFILIATIONS
            "CITATION.cff as the literal text 'NA'.")
     return(paste(a[m$affil], collapse = "; "))
   }
-  parts <- c(p$lab, p$center, p$institution)
-  paste(parts[!vapply(parts, is.null, logical(1)) & nzchar(unlist(parts))], collapse = ", ")
+  .about_org(p)
+}
+
+# "Functional Genomics Lab (Korkmaz Lab) at the Koç University Research Center for
+# Translational Medicine (KUTTAM)". The institution is appended only when the centre's name
+# does not already carry it, which here it does; "..., Koç University" after it would name the
+# university twice in one line. Every field is required: a missing one is an error, never a
+# shorter sentence that silently drops an organisation.
+.about_org <- function(p, esc = function(x) x, lab_wrap = function(x) x) {
+  need <- c("lab", "lab_formal", "center", "center_name", "institution")
+  miss <- need[!vapply(need, function(k) !is.null(p[[k]]) && nzchar(p[[k]]), logical(1))]
+  if (length(miss))
+    stop("ABOUT_PEOPLE declares no ", paste(miss, collapse = ", "), "; the organisation line ",
+         "names the lab, its formal name, the centre and the university")
+  org <- sprintf("%s at the %s (%s)", lab_wrap(esc(sprintf("%s (%s)", p$lab_formal, p$lab))),
+                 esc(p$center_name), esc(p$center))
+  if (!grepl(p$institution, p$center_name, fixed = TRUE))
+    org <- paste0(org, ", ", esc(p$institution))
+  org
 }
 
 # The institutional marks, supplied by the user on 2026-08-30 and shown in the People section
@@ -388,7 +406,7 @@ ABOUT_SECTIONS <- c("How to cite", "People", "Licence and data terms")
 # unchanged; minor when the app gains or loses a capability; and if a released estimate ever
 # MOVES, that is not a version bump on its own, it is a BUILD_LOG entry saying which anchors
 # moved and why, with the version following from that.
-ABOUT_VERSION <- "0.1.6"
+ABOUT_VERSION <- "0.1.7"
 
 # No paper yet (confirmed 2026-08-30). While `doi` is empty the page renders the "not yet
 # published" form; filling `doi` in switches it to a formal citation block and nothing else
@@ -542,27 +560,31 @@ about_facts <- function(registry = COHORTS) {
                   'Contributors, affiliations and a contact address are not listed here yet: ',
                   'they are declared in <code>R/about.R</code> and this section fills ',
                   'itself in from that one place.</p>'))
+  # Each name carries its affiliations as superscript numbers, front-matter style, and the
+  # numbered list follows (step 249). Same numbering as ABOUT_AFFILIATIONS and so as the order
+  # CITATION.cff gives them in. about_affiliation(m) is called for its checks: an author with
+  # no affiliation, or an index past the list, stops here rather than rendering "NA".
+  # The list is NOT <li>: tests/test_about_derived.R counts <li> in this section to prove that
+  # every person shown is declared, and four affiliation items would read as four people.
+  used <- sort(unique(unlist(lapply(p$members, function(m) { about_affiliation(m, p = p); m$affil }))))
   mem <- if (length(p$members))
     paste0('<ul class="guide-list">', paste(vapply(p$members, function(m)
-      paste0('<li><b>', .g_esc(m$name), '</b>',
+      paste0('<li><b>', .g_esc(m$name), '</b><sup>', paste(m$affil, collapse = ","), '</sup>',
              if (!is.null(m$role) && nzchar(m$role)) paste0('<b>, </b>', .g_esc(m$role)) else '',
-             '</li>'), character(1)), collapse = ""), '</ul>') else ""
+             '</li>'), character(1)), collapse = ""), '</ul>',
+           '<p class="guide-fine">', paste(sprintf('<sup>%d</sup> %s', used,
+                                                   .g_esc(ABOUT_AFFILIATIONS[used])),
+                                           collapse = '<br>'), '</p>') else ""
   lnk <- if (length(p$links))
     paste0('<p>', paste(vapply(seq_along(p$links), function(i)
       paste0('<a href="', .g_esc(p$links[[i]]), '">', .g_esc(names(p$links)[[i]]), '</a>'),
       character(1)), collapse = " &middot; "), '</p>') else ""
   con <- if (nzchar(p$contact))
     paste0('<p>Contact: <code>', .g_esc(p$contact), '</code></p>') else ""
-  # The institution is rendered only if declared -- same rule as every other field here. It is
-  # the one identity with no second source in the repository to check it against: `lab` is
-  # cross-checked against the wordmark in scripts/make_logo.py, this came from the user.
-  # The centre and the institution each render only if declared, same rule as every other field
-  # here, and in that order: lab inside centre inside university, which is also the order of the
-  # marks below them.
-  at <- paste0(vapply(c("center", "institution"), function(k)
-    if (!is.null(p[[k]]) && nzchar(p[[k]])) paste0(', ', .g_esc(p[[k]])) else '',
-    character(1)), collapse = "")
-  paste0('<p>Built in the <b>', .g_esc(p$lab), '</b>', at, '.</p>', mem, lnk, con)
+  # Lab, then centre, then (when the centre's name does not carry it) university: the order of
+  # the marks below. Built by .about_org(), the same function about_affiliation() returns.
+  paste0('<p>Built in the ', .about_org(p, esc = .g_esc, lab_wrap = function(x) paste0('<b>', x, '</b>')),
+         '.</p>', mem, lnk, con)
 }
 
 # The marks, rendered from ABOUT_LOGOS and from nothing else. Deliberately NOT wrapped in
@@ -666,7 +688,8 @@ about_html <- function(f, people = ABOUT_PEOPLE, citation = ABOUT_CITATION,
 '<p class="guide-lead">A survival-analysis tool for cancer genomics across <b>',
 .g_int(f$n_cohorts), ' public cohorts</b> in <b>', .g_int(f$n_types),
 ' cancer types</b>. This page records who built it, how to cite it, and the terms the code ',
-'and the data carry. <b>How the numbers are produced</b> is on the Guide tab.</p>',
+'and the data carry. <b>How the numbers are produced</b> is on the ',
+.tab_link("Guide", "Guide tab"), '.</p>',
 
 '<h3 class="guide-h2">How to cite</h3>', cite,
 

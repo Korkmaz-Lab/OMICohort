@@ -180,3 +180,16 @@ get_feature <- function(feature, cohorts = SURV_COHORTS,
 # Convenience alias for gene expression.
 get_expression <- function(gene, cohorts = SURV_COHORTS)
   get_feature(gene, cohorts, kind = "expr")
+
+
+# The subset of `cohorts` whose <kind> matrix lists `feature` (step 244). Reads /features
+# only, the same list and the same exact match get_feature() uses, so the two cannot
+# disagree about which cohorts carry a feature. A cohort with no <kind> h5 does not carry it.
+# The app records the complement on the result (with_absent()) so a missing cohort is
+# explained by name rather than by "no usable data for this query".
+.cohorts_carrying <- function(feature, cohorts, kind) {
+  cohorts[vapply(cohorts, function(coh) {
+    f <- file.path(PROC, sprintf("%s_%s.h5", kind, tolower(coh)))
+    file.exists(f) && feature %in% as.character(h5read(f, "/features"))
+  }, logical(1))]
+}

@@ -53,8 +53,8 @@
 record a different endpoint and are queried on their own.
 
 It is a survival analysis tool for cancer genomics, built in the
-[Korkmaz Lab](https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/) at Koç
-University.
+[Functional Genomics Lab (Korkmaz Lab)](https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/) at the
+Koç University Research Center for Translational Medicine (KUTTAM).
 
 ## How to run it
 Docker must be installed and running on your machine.
@@ -83,10 +83,10 @@ away most of the information in it and makes the answer depend on where the cut 
 fall. A gene can look decisive in one cohort and disappear in another simply because the
 median moved.
 
-**Merging cohorts into one pile.** Pooling patients from several studies and fitting a single
-model gives a number that is not comparable to the per-study numbers. A hazard ratio estimated
-from pooled patients and a pooled hazard ratio are different quantities, and only the second
-one carries the between-study variation that decides whether a finding travels.
+**Merging cohorts into a single model.** Pooling patients from several studies and fitting one
+model to them gives a number that is not comparable to the per-study numbers. A hazard ratio
+estimated from pooled patients and a pooled hazard ratio are different quantities, and only the
+second one carries the between-study variation that decides whether a finding travels.
 
 OMICohort avoids both. Every cohort is fitted on its own, on the continuous score, and the
 separate fits are then combined.
@@ -132,10 +132,10 @@ set by things mRNA cannot see: phosphorylation, cofactor availability, whether i
 nucleus at all. A TF can be flat at the mRNA level and still be driving a tumour.
 
 So OMICohort can ask a different question: is this TF's regulatory programme switched on? That
-is read off the behaviour of the genes the TF controls, in two steps. **ARACNe** infers a
-tissue-specific regulatory network from tumour expression, and **VIPER** scores each patient
-for how consistently that TF's targets move together. Eight tissue-specific networks are in
-use, covering **1,598 transcription factors**.
+is read off the behaviour of the TF's regulon, the genes an ARACNe network infers as its
+targets, in two steps. **ARACNe** infers a tissue-specific regulatory network from tumour
+expression, and **VIPER** scores each patient for how consistently that TF's targets move
+together. Eight tissue-specific networks are in use, covering **1,598 transcription factors**.
 
 Expression, VIPER activity, multi-gene signatures and RPPA protein and phospho measurements
 all go through the same engine, because every score is standardised within its cohort before
@@ -187,7 +187,7 @@ button reads `CITATION.cff`.
 A result that has to be reproducible later should name a pinned version rather than `latest`:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.6
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.7
 ```
 
 ## Licence
@@ -197,6 +197,6 @@ covers the patient data, and this project cannot grant rights it was not given.
 
 ## People
 
-Built in the [Korkmaz Lab](https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/)
-at Koç University: Assist. Prof. Gozde Korkmaz (principal investigator) and Arda Burak Karagöz
+Built in the [Functional Genomics Lab (Korkmaz Lab)](https://research.ku.edu.tr/korkmazlab/functional-genomics-laboratory/)
+at the Koç University Research Center for Translational Medicine (KUTTAM): Assist. Prof. Gozde Korkmaz (principal investigator) and Arda Burak Karagöz
 (development and analysis).
