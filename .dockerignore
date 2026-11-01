@@ -77,6 +77,9 @@ data/processed/*.guardbak
 networks/**
 !networks/*/regulon_*.rds
 !networks/*/tf_list_*.txt
+# networks/tcga is the March 2026 TCGA-BRCA network, replaced in 0.1.8 by networks/tcga_brca
+# (review item G31). No cohort's network_dir points at it any more, so it is not shipped.
+networks/tcga/**
 
 # ---- scan tables ----
 # app.R's .load_scans() globs results/<cancer_type>/*.csv, top level only. The

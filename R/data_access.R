@@ -84,6 +84,22 @@ SURV_COHORTS <- cohorts_for("breast")
   d[!drop, , drop = FALSE]
 }
 
+# ONLY PRIMARY TUMOURS (TCGA type 01) ENTER A TCGA SURVIVAL ANALYSIS (release 0.1.8, review
+# item G16). .dedup_tcga() below ranks a primary tumour first but never REQUIRED one, so a
+# patient whose only tumour sample is a recurrence (02) kept it: five did in 0.1.7, TCGA-GBM
+# 06-0221, 14-0736, 14-1402, 19-0957 and TCGA-OV 29-1707. That scores the patient at
+# recurrence while follow-up runs from diagnosis, which is a different estimand, and it
+# contradicted scripts/brain_panel_lib.R ("matching the TCGA -01 filter"). Metastases (06)
+# and every other type are excluded by the same rule. The non-TCGA cohorts are
+# primary-only at source, and the RPPA frame already was (scripts/build_rppa.py).
+# An eligibility rule, beside the normal-tissue one: which rows may enter at all, not which
+# of a patient's several rows to keep, which stays .dedup_tcga()'s question.
+.drop_tcga_nonprimary <- function(d) {
+  is_t <- grepl("^TCGA-", d$sample_id)
+  drop <- is_t & substr(d$sample_id, 14, 15) != "01"
+  d[!drop, , drop = FALSE]
+}
+
 # TCGA patients can have 2-3 samples (multiple vials/portions). Counting a patient
 # more than once is pseudo-replication in a Cox/KM model, so for survival we keep ONE
 # sample per patient: primary tumor (type 01) preferred, then lowest vial letter.
@@ -123,8 +139,13 @@ get_clinical <- function(cohorts = SURV_COHORTS, endpoint = c("OS", "DFS", "DSS"
     paste(sprintf("'%s'", cohorts), collapse = ","))
   d <- dbGetQuery(con, q)
   d$pam50[!is.na(d$pam50) & d$pam50 == ""] <- NA   # TCGA has "" placeholders
+  # METABRIC records "NC", not classified, for 6 scored patients. It is the absence of a
+  # call, not a class, so it is no call (release 0.1.8, review item G24); as a level it
+  # had been a seventh PAM50 stratum of six patients.
+  d$pam50[!is.na(d$pam50) & d$pam50 == "NC"] <- NA
   d$stage[!is.na(d$stage) & d$stage == ""] <- NA   # empty stage -> NA (generic stratifier)
   d <- .drop_tcga_normals(d)                       # normal tissue is not a patient row
+  d <- .drop_tcga_nonprimary(d)                    # only primary tumours (G16, 0.1.8)
   d <- .dedup_tcga(d)                              # one sample per TCGA patient
   d$time  <- switch(endpoint, OS = d$os_time,  DFS = d$dfs_time,  DSS = d$dss_time)
   d$event <- switch(endpoint, OS = d$os_event, DFS = d$dfs_event, DSS = d$dss_event)

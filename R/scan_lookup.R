@@ -123,7 +123,18 @@ scan_rank_lookup <- function(feature, kind, cohorts, max_followup, adjust_strata
   i <- match(feature, scan_df$tf)
   if (is.na(i)) return(c(base, list(status = "not_found", stratified = strat)))
 
-  rank <- match(feature, scan_df$tf[order(scan_df$p)])   # rank by p, don't trust file order
+  # The rank is a place in the scan's FDR FAMILY (step 278, HANDOFF (ab)): a TF scored in one
+  # cohort only has no q and is not ranked against pooled tests. A scan file from before the
+  # rule has no fdr_note and is refused, since its q mixes the two families.
+  if (!"fdr_note" %in% names(scan_df))
+    stop("scan_rank_lookup(): ", key, " has no fdr_note column; it predates the FDR family ",
+         "rule (release 0.1.8) and its q ranks single-cohort tests among pooled ones. Re-run it.")
+  off <- scan_df$fdr_note == FDR_ONE_COHORT_LABEL
+  if (anyNA(off)) stop("scan_rank_lookup(): ", key, " has a blank fdr_note")
+  if (off[i])
+    return(c(base, list(status = "one_cohort", stratified = strat, k = scan_df$k[i])))
+  fam  <- scan_df[!off, ]
+  rank <- match(feature, fam$tf[order(fam$p)])           # rank by p, don't trust file order
   row  <- scan_df[i, ]
   # BUILT FROM `base`, not assembled again. Every other return path in this function is
   # c(base, list(...)); this one listed the identifying fields a second time, so when
@@ -132,7 +143,7 @@ scan_rank_lookup <- function(feature, kind, cohorts, max_followup, adjust_strata
   # Two copies of a field are two fields.
   modifyList(base, list(
        applicable = TRUE, status = "ok", stratified = strat,
-       rank = rank, n = nrow(scan_df), q = row$q, p = row$p, HR = row$HR, k = row$k,
+       rank = rank, n = nrow(fam), q = row$q, p = row$p, HR = row$HR, k = row$k,
        clears_fdr = isTRUE(row$q < fdr),
        # Every breast row is k<=3 (tau^2 unidentified), so a breast rank rests on the
        # pooling rule; ovarian is k up to 13 and mostly identified. Surface it per row.
@@ -186,6 +197,8 @@ format_scan_rank <- function(res) {
                       res$cancer_label, toupper(res$endpoint)),
     cohorts = "Genome-wide rank applies only to the full-cohort tissue scan; your cohort selection differs, so no rank is shown.",
     horizon = "Genome-wide rank applies only at the scan's follow-up horizon; your horizon differs, so no rank is shown.",
+    one_cohort = sprintf("%s was scored in one cohort only in the %s, so it is not pooled, has no q and is not ranked against the pooled regulators.",
+                         res$feature, scan_lbl),
     not_found = sprintf("%s was not retained in the %s (too few events, or below VIPER's minimum regulon size in every cohort), so it has no genome-wide rank.",
                         res$feature, scan_lbl),
     NULL)

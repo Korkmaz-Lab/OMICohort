@@ -25,24 +25,79 @@ suppressPackageStartupMessages({ library(survival); library(metafor) })
 # a query that otherwise succeeded.
 PH_ALPHA <- 0.05
 
+# HOW EVERY POOL IS TESTED (release 0.1.8, review item G26). tau^2 is estimated by REML and
+# the pooled interval and p come from the Hartung-Knapp-Sidik-Jonkman method in its MODIFIED
+# form: a t distribution on k-1 df with the HKSJ variance, never allowed below the standard
+# (Wald) variance. In metafor that is test = "adhoc". The plain Wald z-test on a REML tau^2
+# is too narrow when few cohorts of unequal size are pooled, which is every tissue here
+# (Roever, Knapp and Friede 2015, BMC Med Res Methodol 15:99); plain HKSJ can come out
+# NARROWER than Wald when the cohorts happen to agree, and the modification forbids that.
+# Chosen on principle, before any re-run was seen: this is not a statistical-findings paper,
+# and fewer q < 0.05 regulators is the honest price of an interval that holds its coverage.
+# Until 0.1.7 the test was Wald z; the before/after list is an internal release check.
+#
+# It is ONE declaration. .pool_test() is what every rma() call that produces a reported
+# pooled number passes -- the engine's .pool_rma() below and the forest's .forest_rma() in
+# R/plots.R -- so the diamond a figure draws is the interval the scan CSV holds.
+#
+# k = 1 never reaches rma(): get_survival() reports a single cohort's own Wald fit, which is
+# not a pooled estimate. metafor would otherwise switch to test = "z" by itself with a
+# warning ("Setting argument test=z since k=1"); the engine does not rely on that warning,
+# and .pool_test() refuses k < 2 outright so nothing can lean on it by accident.
+POOL_TEST <- "adhoc"
+.pool_test <- function(k) {
+  if (!is.numeric(k) || length(k) != 1 || !is.finite(k) || k < 2)
+    stop("a pooled test needs at least two cohorts; got k = ", format(k),
+         ". A single cohort is reported as its own fit, never pooled.")
+  POOL_TEST
+}
+
 # Below this many cohorts, tau^2 (the between-study variance the random-effects CI depends
-# on) is not reliably identified, so the pooled CI reports a heterogeneity estimate carrying
-# almost no information. At k=2 the same inputs give REML [0.663, 0.915] p=0.0024 and
-# Knapp-Hartung [0.273, 2.221] p=0.20 -- a stable point estimate wrapped in an arbitrary
-# interval. The whole breast panel sits here (k=2 DFS, k=3 OS).
+# on) is estimated with almost no precision. The HKSJ interval above already widens with the
+# t on k-1 df, which is the honest response, but tau^2 itself is not identified, so the
+# pooled row says so ("not identified (k < 5)") and carries the fixed-effect fit on the same
+# inputs beside it, letting a reader see whether a conclusion depends on the pooling choice.
+# The engine does NOT switch estimators below the threshold: annotate, don't substitute --
+# the same rule as the "!" PH marker and the truncation labels. Breast DFS (k=2) and COAD
+# DFS (k=4) sit here.
 #
-# The engine does NOT switch estimators below the threshold. Fixed-effect would be
-# affirmatively wrong for breast OS, where 64% of scanned TFs show I2 > 50% -- it assumes
-# the homogeneity the data rejects -- and Knapp-Hartung at k=2 is a t with 1 df. All three
-# rules are differently unreliable; picking a different one would silently re-rank ~1200
-# breast hits on an assumption the data does not support. So the pooled row DISCLOSES that
-# tau^2 is unidentified and carries the fixed-effect result beside it, letting a reader see
-# whether a conclusion depends on the pooling choice. Annotate, don't substitute -- the same
-# rule as the "!" PH marker and the truncation labels.
-#
-# 5 is the conventional floor for estimating tau^2 with any reliability. Like tau=48 it is
-# declared from study design, not tuned against the resulting p-values.
+# 5 is the conventional floor for random-effects meta-analysis (Jackson and Turner 2017;
+# Bender et al. 2018). Like tau=48 it is declared from study design, not tuned against the
+# resulting p-values.
 POOL_MIN_K <- 5
+
+# THE FDR FAMILY (release 0.1.8, HANDOFF item (ab), BUILD_LOG step 278). In a run over two or
+# more cohorts, a TF scored in only ONE of them (k = 1) is that cohort's own Cox Wald test,
+# while every k >= 2 row is the modified HKSJ test above, on k - 1 df. One Benjamini-Hochberg
+# list ranked the two scales together and the permissive one rose to the top: in breast OS all
+# five q < 0.05 rows were k = 1, each a small regulon (25 to 52 targets, median 178 at k = 3)
+# that VIPER's minimum size admits in one cohort only. The author's rule (2026-10-26): the FDR
+# family of a multi-cohort run is its k >= 2 rows; a k = 1 row keeps its p, gets no q, and is
+# labelled FDR_ONE_COHORT_LABEL. A run over ONE cohort is single-cohort by design (most
+# discovery arms), every row is k = 1, and all of them form the family, so nothing changes
+# there. The same rule decides who may REPLICATE in a validation arm of two or more cohorts.
+FDR_ONE_COHORT_LABEL <- "one cohort, not pooled"
+in_fdr_family <- function(k, n_cohorts) {
+  if (!is.numeric(n_cohorts) || length(n_cohorts) != 1L || !is.finite(n_cohorts) || n_cohorts < 1)
+    stop("in_fdr_family(): n_cohorts must be one positive number, got ", format(n_cohorts))
+  if (!is.numeric(k) || anyNA(k) || any(k < 1) || any(k > n_cohorts))
+    stop("in_fdr_family(): every k must lie in 1..", n_cohorts)
+  if (n_cohorts == 1) rep(TRUE, length(k)) else k >= 2
+}
+# The fdr_note column: every row says which it is, never an empty string, because a CSV
+# column of empty strings reads back as NA and nzchar(NA) is TRUE.
+fdr_note_of <- function(k, n_cohorts) {
+  fam <- in_fdr_family(k, n_cohorts)
+  ifelse(fam, if (n_cohorts == 1) "single-cohort run" else "pooled", FDR_ONE_COHORT_LABEL)
+}
+# BH over the family only; NA outside it. NA, not a q from some other list: a number in that
+# cell would be read as a q value, and it would be one from a family the row is not in.
+bh_in_family <- function(p, family) {
+  if (length(p) != length(family) || anyNA(family)) stop("bh_in_family(): p and family differ")
+  q <- rep(NA_real_, length(p))
+  q[family] <- stats::p.adjust(p[family], method = "BH")
+  q
+}
 
 # REML tau^2 by Fisher scoring, with metafor's own documented remedy on non-convergence.
 #
@@ -70,11 +125,13 @@ POOL_MIN_K <- 5
 # disclosure, and the truncation labels). A row that needed damping SAYS so, via
 # converged_by, all the way out to the scan CSV.
 .pool_rma <- function(yi, vi) {
-  fit <- tryCatch(rma(yi = yi, vi = vi, method = "REML"), error = function(e) NULL)
+  test <- .pool_test(length(yi))
+  fit <- tryCatch(rma(yi = yi, vi = vi, method = "REML", test = test),
+                  error = function(e) NULL)
   if (!is.null(fit)) return(list(fit = fit, converged_by = "default"))
   for (ctl in list(list(stepadj = 0.5,  maxiter = 1000),
                    list(stepadj = 0.25, maxiter = 5000))) {
-    fit <- tryCatch(rma(yi = yi, vi = vi, method = "REML", control = ctl),
+    fit <- tryCatch(rma(yi = yi, vi = vi, method = "REML", test = test, control = ctl),
                     error = function(e) NULL)
     if (!is.null(fit)) return(list(fit = fit, converged_by = "damped"))
   }
@@ -377,8 +434,9 @@ get_survival <- function(score,
     pr <- .pool_rma(yi, vi)
     m  <- pr$fit
     # Fixed-effect fit on the SAME inputs, carried as a sensitivity rather than as the
-    # answer. Where tau^2 = 0 the two coincide exactly, which is itself the useful signal:
-    # it says the pooling choice does not matter for this row.
+    # answer. Where tau^2 = 0 the two POINT ESTIMATES coincide exactly, which is itself the
+    # useful signal. The intervals and p do not, since 0.1.8: the pooled test is the modified
+    # Hartung-Knapp-Sidik-Jonkman t on k-1 df, never narrower than this fixed-effect Wald one.
     fe <- rma(yi = yi, vi = vi, method = "FE")
     pooled <- list(HR = exp(as.numeric(m$b)), ci_lb = exp(m$ci.lb), ci_ub = exp(m$ci.ub),
                    p = m$pval, I2 = m$I2, tau2 = m$tau2, k = m$k,
@@ -468,7 +526,7 @@ print.survresult <- function(x, ...) {
       cat(sprintf("    HR/SD = %.2f  [%.2f, %.2f]   p = %.2e%s\n",
                   p$HR_fe, p$ci_fe_lb, p$ci_fe_ub, p$p_fe,
                   if (isTRUE(abs(p$HR - p$HR_fe) < 1e-10))
-                    "   (identical: tau^2 = 0, choice is moot here)" else ""))
+                    "   (same point estimate: tau^2 = 0)" else ""))
     }
   } else cat("POOLED: n/a (no cohort met the event threshold)\n")
   invisible(x)

@@ -177,12 +177,13 @@ SCAN_LABELS <- c(
   mr_scan_os_pam50adj     = "OS - PAM50-adjusted scan (all TFs)",
   mr_scan_dfs_pam50adj    = "DFS - PAM50-adjusted scan (all TFs)",
   immune_mediation_summary = "Immune mediation test",
-  cptac_protein_validation = "CPTAC protein validation",
-  cna_mediation_summary   = "CNA mediation test"
+  cptac_protein_validation = "CPTAC protein agreement",
+  cna_mediation_summary_os  = "CNA mediation test, OS",
+  cna_mediation_summary_dfs = "CNA mediation test, DFS"
 )
 # Per-cohort detail tables and staging artifacts: present on disk, not useful as a
 # standalone browser view (os_hits_annotated is joined into os_annotated instead).
-SCAN_HIDE <- c("immune_mediation", "cna_mediation", "cohort_power_diagnostic",
+SCAN_HIDE <- c("immune_mediation", "cna_mediation_os", "cna_mediation_dfs", "cohort_power_diagnostic",
                "phase2b_audit", "phase2b_duplicates", "phase2b_id_coverage",
                "os_hits_annotated",
                if (!SHOW_IMMUNE_MEDIATION) "immune_mediation_summary")
@@ -315,14 +316,15 @@ KIND_CHOICE_LABEL <- c(viper = "TF activity inferred from VIPER", expr = "mRNA e
 # ---- Multiple query: the cross-tissue vocabulary ----------------------------------
 
 # The tissues do NOT share a feature vocabulary, and they share less of one every time a
-# tissue is added. Re-derived over all seven, 2026-08-26 (step 81): VIPER is 1598 symbols in
-# the union but only 1189 present in EVERY tissue; expr is 58366 vs 20934. Both intersections
-# fell as brain came in (1253 -> 1189, 21281 -> 20934) while both unions rose -- which is the
+# tissue is added. Re-derived over all seven, 2026-10-25 (release 0.1.8): VIPER is 1598 symbols
+# in the union but only 1191 present in EVERY tissue; expr is 58360 vs 20916. At step 81
+# (2026-08-26) they were 1598 vs 1189 and 58366 vs 20934; both intersections had fallen as brain
+# came in (1253 -> 1189, 21281 -> 20934) while both unions rose -- which is the
 # arithmetic of the decision below, not a regression. The selector offers the UNION and a
 # tissue that lacks the feature renders a panel saying so, rather than being dropped: a
 # missing panel is indistinguishable from a null result, and silently showing six panels
 # when seven were promised is exactly the quiet-default failure this project bans. Offering
-# the INTERSECTION instead would have cost the selector 409 VIPER symbols outright.
+# the INTERSECTION instead would have cost the selector 407 VIPER symbols outright.
 FEATURES_ALL <- setNames(lapply(KINDS, function(k)
   sort(Reduce(union, lapply(CANCER_TYPES, function(ct) FEATURES_BY_CT[[ct]][[k]])))), KINDS)
 
@@ -813,7 +815,7 @@ tr.mg-open .mg-chev { transform: rotate(90deg); }
              contain: size; }
 
 /* Long feature symbols (2026-08-10). A feature name here is DATA, not a label: the offered
-   vocabulary is 58366 distinct strings read out of the h5 files, 5837 of them '///'-joined probe
+   vocabulary is 58360 distinct strings read out of the h5 files, 5837 of them '///'-joined probe
    sets, the longest 1466 characters, and the long ones contain no whitespace at all -- so
    nothing in them is a line-break opportunity and every default that relies on one fails.
 
@@ -1444,13 +1446,16 @@ server <- function(input, output, session) {
   })
 
   output$cptac_validation_badge <- renderUI({
-    req(input$feature)
-    r <- .row_for(.scans()$cptac_protein_validation, input$feature)
-    if (is.null(r) || is.na(r$p_viper)) return(NULL)
-    sig <- r$p_viper < 0.05
-    tags$p(class = paste("note note-tuck", if (sig) "note-good" else "note-muted"),
-          sprintf("CPTAC protein validation: VIPER activity vs. measured protein r=%.2f, p=%.2g (n=%d).",
-                  r$cor_viper_vs_protein, r$p_viper, r$n))
+    req(input$feature, input$kind)
+    # Release 0.1.8 (BUILD_LOG step 277): "CPTAC protein agreement". The score shown matches
+    # the query kind, the verdict is q over every TF tested, and the rules live in
+    # cptac_agreement_note() (R/cptac.R). Until 0.1.7 this printed the ACTIVITY number and
+    # p < 0.05 beside every kind, mRNA included, for the 15 July hits only.
+    n <- cptac_agreement_note(.row_for(.scans()$cptac_protein_validation, input$feature),
+                              input$kind)
+    if (is.null(n)) return(NULL)
+    tags$p(class = paste("note note-tuck", if (n$agree) "note-good" else "note-muted"),
+          HTML(info_note_html(n$text, n$info)))
   })
 
   output$immune_mediation_badge <- renderUI({
@@ -1466,8 +1471,14 @@ server <- function(input, output, session) {
   })
 
   output$cna_mediation_badge <- renderUI({
-    req(input$feature)
-    r <- .row_for(.scans()$cna_mediation_summary, input$feature)
+    req(input$feature, input$kind, input$endpoint)
+    # Release 0.1.8 (review item G21): the test fits TF ACTIVITY on one endpoint, so its verdict
+    # is shown only beside a TF activity query on an endpoint it was run for, and read from
+    # that endpoint's own file. Until 0.1.7 it was looked up by name alone, which put the OS
+    # verdict beside breast DFS (the default) and beside mRNA queries of the same gene.
+    if (!identical(input$kind, "viper")) return(NULL)
+    r <- .row_for(.scans()[[paste0("cna_mediation_summary_", tolower(input$endpoint))]],
+                  input$feature)
     if (is.null(r)) return(NULL)
     # The threshold rule and the wording both live in cna_mediation_note() (R/plots.R) now,
     # where a test can reach them: this is a VERDICT produced by three thresholds, and it
@@ -1913,7 +1924,7 @@ server <- function(input, output, session) {
   # These three are the LAST of the five handlers step 35 measured, and the mildest -- which is
   # why they were left when mq_export_dir() and mq_dl_all were fixed in step 36. What they
   # actually buy, split the way step 35 split it:
-  #   * the "/" in 5837 of 58366 offered features: TIDINESS. Measured end to end -- Chrome
+  #   * the "/" in 5837 of 58360 offered features: TIDINESS. Measured end to end -- Chrome
   #     already saves "C2///CFB" as "C2___CFB", the vocabulary has ZERO collisions under that
   #     mapping, and the true symbol is inside the file. Nothing was broken; it is now
   #     consistent with the other three tabs instead of relying on browser behaviour that

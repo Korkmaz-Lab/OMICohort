@@ -49,7 +49,7 @@
 
 **Does this score predict patient outcome?** OMICohort asks that question across
 **53 patient cohorts** in **7 cancer types**. The primary-endpoint scans pool
-**10,429 patients** and **4,226 recorded events** across **47** of those cohorts; the rest
+**10,418 patients** and **4,215 recorded events** across **47** of those cohorts; the rest
 record a different endpoint and are queried on their own.
 
 It is a survival analysis tool for cancer genomics, built in the
@@ -106,7 +106,9 @@ mixed together.
 
 The per-cohort log hazard ratios are combined by random-effects meta-analysis (REML, using
 `metafor`), which estimates how much the true effect varies between cohorts instead of
-assuming that it does not vary at all. Alongside the pooled estimate the app reports I², the
+assuming that it does not vary at all. The interval and p value around the pooled estimate use
+the modified Hartung-Knapp-Sidik-Jonkman method, a t-based interval that is never narrower than
+the standard one, suited to the few cohorts a tissue has. Alongside the pooled estimate the app reports I², the
 share of the observed variation that is between-cohort rather than sampling noise. A pooled
 estimate with high heterogeneity is not the same claim as a tight one, so the interface shows
 both rather than only the headline number.
@@ -146,7 +148,8 @@ fitting.
 Every transcription factor in a tissue's network has already been scanned against survival,
 for each endpoint, so a candidate can be placed among all of them rather than judged only on
 whether it is significant on its own. Rankings are corrected for multiple testing with
-Benjamini-Hochberg, and hits are counted at q < 0.05.
+Benjamini-Hochberg over the regulators pooled across at least two cohorts, and hits are counted
+at q < 0.05; a regulator only one cohort could score keeps its p but is not ranked.
 
 Where a tissue has enough cohorts, the scan is also run as a discovery and validation split:
 one set of cohorts proposes and a held-out set tests. A regulator that clears FDR in discovery
@@ -187,7 +190,7 @@ button reads `CITATION.cff`.
 A result that has to be reproducible later should name a pinned version rather than `latest`:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.7
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.8
 ```
 
 ## Licence

@@ -239,22 +239,16 @@ cohort_endpoints <- function(cohort, registry = COHORTS) {
 #   floor. That is the rule working, and it is now ASSERTED rather than promised --
 #   tests/test_panel_horizon.R derives every pair from PANEL_HORIZONS and requires equality
 #   in both directions. Until step 119 it hand-listed four tissues and omitted these two.
-# breast = absent -> NULL: its anchor HRs are frozen at full follow-up.
-#
-#   THE STATED GROUND FOR THE EXEMPTION -- "comparable windows across its cohorts" -- IS
-#   FALSE AT OS, and is left standing here only because changing it moves frozen anchors.
-#   Derived windows: OS is SCANB 81.28 / TCGA_BRCA 282.71 / METABRIC 355.20, a 4.37x spread,
-#   which is a wider ratio than gbm's (3.56x) and gbm has a declared tau. DFS is genuinely
-#   comparable (281.10 / 389.33, 1.39x), so the claim is true for the endpoint it was
-#   probably written about and false for the other. Applying the project's own rule to
-#   breast/OS gives tau = 81, and step 116 measured what that does: ESR1's pooled HR goes
-#   from 1.107 (p 0.015) to 0.999 (p 0.99), with METABRIC -- the most PH-violated fit in the
-#   project, cox.zph p = 1.3e-16 -- flipping 1.080 (p 0.12) to 0.716 (p 3.6e-6), and the
-#   pool's I2 going from 0% at full follow-up to 89.5% on the common window.
-#   THIS IS AN OPEN ESTIMAND DECISION FOR THE USER, not a defect to tidy: declaring a
-#   breast/OS horizon would move published anchors, scans and figures. See HANDOFF.md and
-#   results/rmst_sensitivity.csv. What is NOT acceptable is the sentence that stood here,
-#   which asserted the comparability as settled fact.
+# breast OS = 81 / DFS = 281, since release 0.1.8 (review item G19): the same per-endpoint
+#   rule as every other tissue. Shortest windows, per pool: OS 81.28 (SCANB, against
+#   TCGA_BRCA 282.71 and METABRIC 355.20), DFS 281.10 (TCGA_BRCA, against METABRIC 389.33).
+#   Until 0.1.7 breast was the one tissue outside the rule, exempted because its anchor HRs
+#   were frozen at full follow-up, and the reason stated for the exemption ("comparable
+#   windows across its cohorts") was false at OS: a 4.37x spread, wider than gbm's 3.56x,
+#   which has a declared tau. Step 116 measured what the rule does to the best-known breast
+#   result, ESR1/OS: pooled HR 1.107 (p 0.015) at full follow-up against 0.999 at 81 months,
+#   METABRIC moving from 1.080 to 0.716 and I2 from 0% to 89.5%. That is the estimand the
+#   rule asks for, a common window, and the paper reports it; the frozen anchors are retired.
 #
 # horizon_for(cancer_type, endpoint) returns that endpoint's tau. Called without an
 # endpoint it stays backward-compatible: a single-endpoint tissue (ovarian) returns its
@@ -263,6 +257,7 @@ cohort_endpoints <- function(cohort, registry = COHORTS) {
 # and gets the exact one; the app now passes the SELECTED endpoint too (via tau_choices),
 # so the bare form survives only as a defensive fallback, no longer a live app path.
 PANEL_HORIZONS <- list(
+  breast  = c(OS = 81, DFS = 281),
   ovarian = c(OS = 48),
   luad    = c(OS = 73, DFS = 99),
   lusc    = c(OS = 87, DFS = 138),
@@ -288,38 +283,22 @@ endpoints_of <- function(cancer_type, registry = COHORTS)
          c("OS", "DFS", "DSS"))
 
 # Which endpoint a tissue's analysis treats as PRIMARY -- the one its stored artifacts
-# (mr_scan_<ep>.csv, anchor figures, survtables) are cut at, and the one the app opens on
-# and defaults its tau to. A DECLARED judgement, not derivable from the data: breast DFS is
-# the rigorous endpoint (OS a k=3 secondary); ovarian OS (events ~60%, no DFS panel); lung's
-# two subtypes split -- LUAD DFS, LUSC OS. This is the SINGLE source of truth; app.R and
-# PANELS in make_plots.R defer to it rather than keeping parallel copies (a drifted copy in
-# app.R, missing lung, is exactly what let the selector open LUAD on OS at the wrong tau).
-# colon = DFS: the same event-count derivation that made LUAD DFS-primary and LUSC
-# OS-primary. TCGA-COAD is the thinnest discovery arm in the project (117 DFS vs 98 OS
-# events), so the extra events fall where colon is most constrained, and DFS also buys the
-# larger validation pool (k=3 vs k=2). Declared 2026-07-29, BEFORE any colon HR existed --
-# deciding after seeing both scans is the garden-of-forking-paths move this project already
-# refused when tau=36 was rejected for ovarian because it gave better p-values.
-#
-# lgg = OS, declared 2026-08-24 (step 73), and it is the one primary-endpoint choice here
-# that goes AGAINST the event counts available on the day it was made. On today's staged
-# numbers DFS wins on every visible axis: TCGA-LGG's PFI has 192 events to OS's 125, the
-# DFS validation arm (GSE107850_LGG, 195 patients / 101 events) is larger than the OS one
-# (GSE43107_LGG, 82 / 66), and the pooled totals are DFS 706/293 against OS 593/191. The
-# deciding fact is not today's count but the CEILING. CGGA -- already admitted to the plan
-# as lgg's validation backbone -- is OS-ONLY; it has no PFI or DFS column anywhere, and its
-# three lgg arms carry 227 OS deaths pre-dedup. So OS can reach k=5, which is exactly
-# POOL_MIN_K, the point at which tau^2 becomes identified and the random-effects interval
-# stops resting on a between-study variance the data cannot estimate. DFS is STRUCTURALLY
-# CAPPED AT k=2 forever: CGGA adds nothing to it, and GSE107850 is the only brain series in
-# the entire candidate set that deposits recurrence time at all. An endpoint that can never
-# be meta-analysed is a worse primary than one that currently has fewer events.
-# Choosing OS does NOT delete DFS -- both endpoints are registered, both taus declared, and
-# lgg/DFS stays queryable at k=2. PRIMARY_ENDPOINT only sets the app's default and the
-# endpoint the headline scan runs on.
-# DISCLOSED, not hidden: this is a bet on CGGA landing. If CGGA is never staged, lgg/OS
-# stays at k=2 / 191 events and is the weaker of the two pools, and the choice should be
-# revisited -- in that case, and only in that case, DFS is the better primary.
+# (mr_scan_<ep>.csv, figures, survtables) are cut at, and the one the app opens on and
+# defaults its tau to. Since release 0.1.8 (review item G18) it is stated as a RULE, and
+# tests/test_registry_endpoints.R derives all seven from it and fails if this constant
+# disagrees:
+#   1. If exactly one endpoint reaches POOL_MIN_K (5) cohorts, the conventional minimum for
+#      random-effects meta-analysis, it is primary: OS in ovarian, gbm, lusc and lgg.
+#   2. Otherwise an endpoint the TCGA Pan-Cancer Clinical Data Resource advises caution with
+#      is set aside (Liu et al. 2018, Table 3: OS in TCGA-BRCA needs longer follow-up), and
+#      the endpoint with more events in the tissue's TCGA cohort is chosen: DFS in breast,
+#      luad and coad.
+# HONEST HISTORY, so the rule is not mistaken for a pre-registration: these values were chosen
+# one tissue at a time as each landed (breast DFS at step F after its first scans; coad on
+# 2026-07-29 before any colon HR; lgg OS at step 73 on the CGGA ceiling) and the rule was
+# written down afterwards, in 0.1.8, as the one statement that reproduces all seven. The
+# paper states the rule and does not claim it was fixed in advance. Choosing a primary
+# endpoint deletes nothing: every endpoint stays registered, scanned and queryable.
 PRIMARY_ENDPOINT <- c(breast = "DFS", ovarian = "OS", luad = "DFS", lusc = "OS",
                       coad = "DFS", gbm = "OS", lgg = "OS")
 

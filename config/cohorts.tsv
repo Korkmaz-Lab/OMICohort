@@ -1,5 +1,5 @@
 cohort	cancer_type	platform	role	stratify_by	endpoints	network_dir
-TCGA_BRCA	breast	rnaseq	discovery,network	pam50	OS,DFS,DSS	tcga
+TCGA_BRCA	breast	rnaseq	discovery,network	pam50	OS,DFS,DSS	tcga_brca
 SCANB	breast	rnaseq	validation,network	pam50	OS	scanb
 METABRIC	breast	microarray	validation	pam50	OS,DFS	
 TCGA_OV	ovarian	rnaseq	discovery,network	none	OS,DFS,DSS	tcga_ov

@@ -157,9 +157,10 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
   # The candidate-regulator list each ARACNe run was seeded with, read off the network
   # directories the registry actually points at -- NOT by listing networks/, for the same
   # reason `nets` is not: gse9891 has one too and is deliberately not in use.
-  # networks/tcga has no tf_list_*.txt of its own: that network was reused from the earlier
-  # TCGA-BRCA work and its list lives outside this repository. So this range covers the
-  # networks whose list is HERE, which is what a figure on a page should be able to prove.
+  # Every network the registry points at keeps the list it was offered as tf_list_<dir>.txt,
+  # since 0.1.8 breast too (networks/tcga_brca, review item G31; the March network in
+  # networks/tcga kept its list under the run's own name, tf_list.txt, and is no longer used).
+  # So this range is read from every network in use, which a figure on a page must be able to prove.
   tfl <- lapply(unlist(lapply(unique(dirname(nets)), list.files,
                               pattern = "^tf_list_.*[.]txt$", full.names = TRUE)),
                 function(f) readLines(f, warn = FALSE))
@@ -264,7 +265,10 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
     'the regulators called here, at most about ', format(100 * GUIDE_FDR), ' in every hundred ',
     'are ',
     'expected to be there by chance. Where a stratifier is declared, the stratified scan is ',
-    'the one counted, since that is the estimate the app reports.</li>',
+    'the one counted, since that is the estimate the app reports. Only regulators pooled over ',
+    'at least two cohorts are counted: one that a scan could score in a single cohort keeps ',
+    'its p but has no q, because a single cohort&rsquo;s own test is not the pooled test the ',
+    'others had.</li>',
     # TWO BULLETS, AND THE SECOND ONE IS THE REASON. Until step 231 this was one bullet
     # ending "in those tissues nothing survived the second look", which says the validation
     # test ran and everything failed it. For a 0 of 0 that is false: nothing REACHED the test.
@@ -397,7 +401,7 @@ guide_html <- function(f) {
 # series' own field. test_guide_derived.R holds the registry to exactly those three families.
 '<b>DFS</b> is the name used here for each cohort&rsquo;s recurrence or progression endpoint as ',
 'its source records it: the progression-free interval for TCGA, relapse-free survival for ',
-'METABRIC, and each GEO series&rsquo; own disease-free, relapse, recurrence or progression ',
+'METABRIC, and each GEO series&rsquo; own disease-free, relapse, recurrence, distant-metastasis or progression ',
 'field. They count the same kind of event, the disease returning or advancing, but are not one ',
 'identical definition.</p>',
 .guide_table(f),
@@ -430,7 +434,7 @@ guide_html <- function(f) {
 '<li><b>Pooling is random-effects Restricted Maximum Likelihood (REML)</b>, not fixed-effect. A fixed-effect pool assumes every ',
 'cohort is estimating the identical number and treats disagreement between them as noise. Cohorts ',
 'here differ in platform, treatment era and case mix, so they are not estimating the identical ',
-'number, and a random-effects pool says so by widening the interval.</li>',
+'number, and a random-effects pool says so by widening the interval. The interval and the pooled p use the modified Hartung-Knapp-Sidik-Jonkman method, which allows for how few cohorts are combined and is never narrower than the standard interval.</li>',
 '<li><b>I&sup2; is the disagreement/heterogeneity</b> between cohorts, as a percentage of the total variation. ',
 'Near 0% means they tell the same story. High I&sup2; with a significant diamond is the case to ',
 'be careful with, the average may not describe any actual cohort.</li>',
@@ -473,7 +477,7 @@ guide_html <- function(f) {
 'cohort&rsquo;s own Cox model. On the pooled row they are the random-effects estimate, the ',
 'diamond.</li>',
 '<li><b>p</b>: the Wald test of that hazard ratio against 1. On the pooled row it tests the ',
-'pooled estimate.</li>',
+'pooled estimate, by the same modified Hartung-Knapp-Sidik-Jonkman method as its interval.</li>',
 '<li><b>log-rank p</b>: the test of the two median-split KM curves. It answers a different ',
 'question from p, as the KM section explains. It is blank on the pooled row, and for a cohort ',
 'whose curves are withheld.</li>',
@@ -559,13 +563,16 @@ format(POOL_MIN_K), ' cohorts were pooled, too few to estimate how much they tru
 '<li><b>CPTAC protein detection.</b> In how many tumours of CPTAC-BRCA, an independent breast ',
 'cohort measured by mass spectrometry, the protein was detected. A low count means the protein ',
 'is hard to measure by this method, not that patients lack it.</li>',
-'<li><b>CPTAC protein validation.</b> For a TF, how closely its inferred activity follows its ',
-'own measured protein across the CPTAC tumours. A weak correlation does not by itself count ',
+'<li><b>CPTAC protein agreement.</b> For a TF, how closely the score you queried follows the ',
+'TF&rsquo;s own measured protein across the CPTAC tumours: its activity beside a TF activity ',
+'query, its mRNA beside an mRNA query. It is a Spearman correlation with a q value corrected ',
+'over every TF tested, and is marked when q &lt; ', format(CPTAC_AGREEMENT_ALPHA),
+' and the correlation is positive. A weak correlation does not by itself count ',
 'against the activity score, since a TF&rsquo;s activity can change without the amount of ',
 'protein changing.</li>',
 '<li><b>Copy-number adjustment.</b> For the TFs this analysis covered, whether the association ',
 'with survival holds once the model also accounts for copy number at the gene&rsquo;s own ',
-'locus. The annotation ',
+'locus. It is run on TF activity, separately for OS and DFS at the breast horizons, so it is shown only beside a TF activity query, for the endpoint selected, and names that endpoint. The annotation ',
 'reads <b>IS</b> explained only when the unadjusted association has p &lt; ',
 format(MEDIATION_ALPHA), ', the adjustment shrinks the log hazard ratio toward zero by at least ',
 format(MEDIATION_ATTENUATION_MIN), '%, and the adjusted p is above ', format(MEDIATION_ALPHA),
@@ -604,7 +611,8 @@ format(MEDIATION_ATTENUATION_MIN), '%, and the adjusted p is above ', format(MED
 'the genome-wide scan for the same tissue and endpoint, with a Benjamini-Hochberg q. This is ',
 'the multiplicity context: a p of 0.01 means something different when it is one test than when it ',
 'is one of ', .g_int(f$n_tf), '. The rank is looked up from the scan on disk, and only shown when ',
-'the query&rsquo;s recipe matches the scan&rsquo;s exactly.</li>',
+'the query&rsquo;s recipe matches the scan&rsquo;s exactly. A TF the scan could score in one ',
+'cohort only is not ranked, for the reason given under Pass q above.</li>',
 '</ul>',
 
 # ---------------------------------------------------------------- caveats

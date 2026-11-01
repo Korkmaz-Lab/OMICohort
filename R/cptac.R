@@ -87,3 +87,49 @@ cptac_coverage <- function(path = CPTAC_RAW_PATH()) {
 CPTAC_BADGE_INFO <- paste(
   "Mass spec does not detect every protein in every sample, so this counts how measurable",
   "the gene's protein is here. It is not a patient result and says nothing about outcome.")
+
+# ---- CPTAC PROTEIN AGREEMENT (release 0.1.8, BUILD_LOG steps 271 to 277) --------------
+# The second CPTAC line: for a TF, the Spearman correlation between a score and the TF's own
+# measured protein across the matched CPTAC-BRCA tumours, read from
+# results/breast/cptac_protein_validation.csv (R/step_e_cptac_validation.R). Until 0.1.7 it
+# was "CPTAC protein validation": 15 rows, the July survival hits, shown by TF name beside
+# every query kind with the ACTIVITY number and p < 0.05. Since 0.1.8 it covers every TF the
+# driver could test, so it is context for a TF like the detection line, not a check of a hit,
+# and three rules follow from that:
+#   - the score matches the query: TF activity beside a TF activity query, the TF's own mRNA
+#     beside an mRNA query (the same tumours, both columns in the file), nothing beside any
+#     other kind;
+#   - the verdict is the BH q over all TFs tested, not p, and the line is "good" only when q
+#     is below CPTAC_AGREEMENT_ALPHA AND the correlation is positive (two TFs pass q with a
+#     negative one, which is disagreement);
+#   - q below CPTAC_AGREEMENT_Q_FLOOR is printed as "q < 0.001", not as a tiny number.
+# The endpoint is not consulted: unlike the copy-number line this is not a survival result.
+CPTAC_AGREEMENT_ALPHA   <- 0.05
+CPTAC_AGREEMENT_Q_FLOOR <- 0.001
+CPTAC_AGREEMENT_KINDS   <- c(viper = "TF activity", expr = "mRNA")
+
+CPTAC_AGREEMENT_INFO <- paste(
+  "Spearman correlation of this score with the TF's own protein across CPTAC tumours, q corrected",
+  "over all TFs tested. Not a survival result; mRNA usually follows protein more closely than TF activity.")
+
+# list(text, agree, info) for one row of the file, or NULL when the query kind has no score
+# here. A row that lacks the columns of the 0.1.8 file stops loudly: the 0.1.7 file had no q,
+# and reading it would silently fall back to a verdict the line no longer uses.
+cptac_agreement_note <- function(r, kind) {
+  if (is.null(r) || !(kind %in% names(CPTAC_AGREEMENT_KINDS))) return(NULL)
+  col <- if (identical(kind, "viper")) "viper" else "mrna"
+  need <- c("n", paste0("cor_", col, "_vs_protein"), paste0("q_", col))
+  miss <- setdiff(need, names(r))
+  if (length(miss))
+    stop("cptac_agreement_note(): row is missing ", paste(miss, collapse = ", "),
+         "; it is not from the 0.1.8 cptac_protein_validation.csv")
+  if (nrow(r) != 1L) stop("cptac_agreement_note(): expected one row, got ", nrow(r))
+  rho <- r[[need[2]]]; q <- r[[need[3]]]
+  if (!is.finite(rho) || !is.finite(q)) return(NULL)
+  qtxt <- if (q < CPTAC_AGREEMENT_Q_FLOOR) sprintf("q < %s", format(CPTAC_AGREEMENT_Q_FLOOR))
+          else sprintf("q = %.2g", q)
+  list(text = sprintf("CPTAC protein agreement: %s vs. own measured protein, Spearman rho %.2f, %s (n=%d).",
+                      CPTAC_AGREEMENT_KINDS[[kind]], rho, qtxt, as.integer(r$n)),
+       agree = q < CPTAC_AGREEMENT_ALPHA && rho > 0,
+       info = CPTAC_AGREEMENT_INFO)
+}

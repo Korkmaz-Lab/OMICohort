@@ -118,8 +118,9 @@ ABOUT_TERMS <- list(
     "its SNP genotypes sit separately at the European Genome-phenome Archive and are not used",
     "here. cBioPortal releases this dataset under the Open Database License (ODbL), so you may",
     "reuse and pass it on provided you credit the source and place any dataset you derive from",
-    "it under the same licence. Cite Curtis et al., Nature 2012 and Pereira et al., Nature",
-    "Communications 2016."),
+    "it under the same licence. Cite the three papers cBioPortal's study record cites: Curtis",
+    "et al., Nature 2012, Pereira et al., Nature Communications 2016 and Rueda et al., Nature",
+    "2019, the source of the relapse-free survival used here."),
   "SCAN-B" = paste(
     "Sweden Cancerome Analysis Network: Breast, a population-based Swedish cohort released",
     "through the Gene Expression Omnibus as accession GSE96058, which anyone can download from",
@@ -406,7 +407,7 @@ ABOUT_SECTIONS <- c("How to cite", "People", "Licence and data terms")
 # unchanged; minor when the app gains or loses a capability; and if a released estimate ever
 # MOVES, that is not a version bump on its own, it is a BUILD_LOG entry saying which anchors
 # moved and why, with the version following from that.
-ABOUT_VERSION <- "0.1.7"
+ABOUT_VERSION <- "0.1.8"
 
 # No paper yet (confirmed 2026-08-30). While `doi` is empty the page renders the "not yet
 # published" form; filling `doi` in switches it to a formal citation block and nothing else

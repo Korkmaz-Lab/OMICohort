@@ -284,8 +284,8 @@ fmt_p <- function(v) {
 # 2026-08-10 version of this paragraph gave figures ("97.0%", "98.6%", "626") with no statement
 # of which title, geometry or cex they were measured at, which is exactly why nobody could tell
 # they had gone stale when brain doubled the vocabulary. Re-derived 2026-08-27 over the union of
-# every feature the app offers (58366 DISTINCT strings across seven tissues x two query kinds;
-# .feature_tag()'s note says 59964 because it counts a symbol once per kind), on the KM at its
+# every feature the app offers (58360 DISTINCT strings across seven tissues x two query kinds;
+# .feature_tag()'s note says 59958 because it counts a symbol once per kind), on the KM at its
 # export geometry -- 7x5.5in, mar c(2.6, 4.1, 3.0, 2.1), cex.main 1.2, so w = 6.60in -- with the
 # longest cohort id in the tail: the title fits on ONE line for 96.4% and within TWO for 98.7%.
 # A third line would buy 0.5% and cost every long-titled figure a row of plot area. The
@@ -610,7 +610,11 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
 # disagree if there is only one call. (Deliberately NOT .pool_rma() from the engine: that
 # one retries with a damped Fisher step, this one does not, and the range has to describe
 # the fit that is actually DRAWN. The divergence is pre-existing and recorded in HANDOFF.)
-.forest_rma <- function(yi, vi) rma(yi = yi, vi = vi, method = "REML")
+# The TEST is the engine's own declaration, .pool_test() in R/survival_engine.R (modified
+# Hartung-Knapp-Sidik-Jonkman since 0.1.8), so the drawn diamond is the interval the scan
+# and the results table report. A second copy of that choice here is how they would drift.
+.forest_rma <- function(yi, vi)
+  rma(yi = yi, vi = vi, method = "REML", test = .pool_test(length(yi)))
 
 # Everything one forest DRAWS, as a range on the HR scale: every estimable cohort's CI, and
 # the pooled diamond's when there are two or more. The pooled row is included because it is
@@ -1051,10 +1055,10 @@ FEATURE_NAME_BUDGET <- 80L
 #
 # This exists because of what the app's own vocabularies actually contain, measured against
 # these matrices (2026-08-09, re-derived 2026-08-10, re-derived again over seven tissues
-# 2026-08-26, figures re-checked 2026-08-27, re-derived again 2026-08-30):
-# of the 59964 features the selectors offer across seven tissues x two query kinds -- 58366
+# 2026-08-26, figures re-checked 2026-08-27, re-derived again 2026-08-30 and 2026-10-25):
+# of the 59958 features the selectors offer across seven tissues x two query kinds -- 58360
 # DISTINCT strings, since a symbol offered under both
-# viper and expr is counted twice in 59964 and once in 58366, and every figure in this paragraph
+# viper and expr is counted twice in 59958 and once in 58360, and every figure in this paragraph
 # is over the distinct set -- **5837 contain "/"** -- probe sets mapping to several genes, e.g.
 # "C2///CFB" -- and 363 are longer than 215 bytes, the longest 1466. The longest feature that
 # does NOT contain a "/" is 40 characters, so a sanitiser that also caps length covers both
@@ -1064,6 +1068,9 @@ FEATURE_NAME_BUDGET <- 80L
 # Withdrawing immune from the selectors (step 108) moved the offer again, 60041 -> 59964 and the
 # distinct set 58443 -> 58366, and changed NONE of the figures above: the 77 cell-type scores it
 # took away are short and slash-free, so they were never in any of the sets being counted here.
+# Release 0.1.8 moved them once more, 59964 -> 59958 and 58366 -> 58360, when TCGA-BRCA expression
+# began to come from the rebuilt network's export (20,371 genes, the March matrix had 20,560;
+# review item G31), and again changed none of the other figures (re-derived 2026-10-25).
 #
 # What went wrong without it, measured end to end on 2026-08-10 (BUILD_LOG step 35): the
 # Multiple query ZIP put such a name through file.path(), so pdf() was handed a path whose
@@ -1103,7 +1110,7 @@ FEATURE_NAME_BUDGET <- 80L
 # device clips a centred title at the page box, so both ends went, including the `(expr) vs OS`
 # suffix. Step 38 fixed that (.title_lines(): the title now wraps to the device and marks any
 # residual cut), so a figure DOES name its feature again -- but only within two lines plus a
-# `[+n chars]` marker, which for the 743 longest features of 58366 is still not the whole
+# `[+n chars]` marker, which for the 743 longest features of 58360 is still not the whole
 # symbol. So the sentence above stands as written: the authoritative statement of which
 # feature a file came from is the `feature` column INSIDE it, not its name and not its title.
 .feature_tag <- function(x) {
@@ -1327,7 +1334,8 @@ survtable <- function(res) {
       # FALSE = the CI on this row assumes a between-study variance that k cohorts cannot
       # identify (k < POOL_MIN_K). HR_fe/p_fe are the fixed-effect fit on the same inputs,
       # so a reader can see whether the finding survives the other pooling rule. They are
-      # equal to HR/p exactly when tau^2 = 0, i.e. when the choice was moot.
+      # HR_fe equals HR exactly when tau^2 = 0; p_fe is then smaller than p, because the
+      # pooled p is the modified HKSJ test (0.1.8) and this one is the fixed-effect Wald.
       pool_ci_identified = isTRUE(p$tau2_identified),
       # How many of this pool's k cohorts carried a strata() term. Pooled-row-only, the same
       # shape as pool_ci_identified: a per-cohort row is one fit and already says so in
@@ -2075,7 +2083,7 @@ mgene_export_name <- function(entries) {
 
 # How many characters of the on-screen `gene` cell one symbol may claim.
 #
-# 40 is DERIVED, not chosen: the longest feature in the whole 58366-string vocabulary that
+# 40 is DERIVED, not chosen: the longest feature in the whole 58360-string vocabulary that
 # does not contain a "/" is 40 characters (the same measurement FEATURE_NAME_BUDGET's note
 # records). So this budget never touches a symbol that names a single gene -- it can only
 # ever shorten a "///"-joined probe set, which is exactly the class that has no whitespace
@@ -2517,17 +2525,19 @@ mediation_is_explained <- function(r) {
 }
 
 cna_mediation_note <- function(r) {
-  need <- c("HR_unadj", "HR_adj", "p_cna_only", "HR_cna_only")
+  need <- c("HR_unadj", "HR_adj", "p_cna_only", "HR_cna_only", "endpoint", "max_fu")
   miss <- setdiff(need, names(r))
   if (length(miss))
     stop("cna_mediation_note(): row is missing ", paste(miss, collapse = ", "),
-         " -- it did not come from cna_mediation_summary.csv")
+         " -- it did not come from a cna_mediation_summary_<endpoint>.csv")
   mediated <- mediation_is_explained(r)
-  txt <- sprintf("Copy number: signal %s explained by own-locus CNA (HR %.2f -> %.2f after adjusting).",
-                 if (mediated) "IS" else "NOT", r$HR_unadj, r$HR_adj)
+  # The endpoint and horizon the test was run at are named on the line (0.1.8, G21): the
+  # same TF can be tested on OS and on DFS, and the verdict describes one of them.
+  txt <- sprintf("Copy number (%s, %g months): signal %s explained by own-locus CNA (HR %.2f -> %.2f after adjusting).",
+                 r$endpoint, r$max_fu, if (mediated) "IS" else "NOT", r$HR_unadj, r$HR_adj)
   if (!is.na(r$p_cna_only) && r$p_cna_only < 0.05)
-    txt <- paste(txt, sprintf("CNA alone also predicts OS (HR %.2f, p %.2g).",
-                              r$HR_cna_only, r$p_cna_only))
+    txt <- paste(txt, sprintf("CNA alone also predicts %s (HR %.2f, p %.2g).",
+                              r$endpoint, r$HR_cna_only, r$p_cna_only))
   list(text = txt, mediated = mediated, info = CNA_MEDIATION_INFO)
 }
 
