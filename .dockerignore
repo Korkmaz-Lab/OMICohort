@@ -14,8 +14,6 @@
 # ---------------------------------------------------------------------------
 
 *
-**/.DS_Store
-**/.Rhistory
 
 # ---- code, configuration, assets ----
 # R/ is listed FILE BY FILE, matching .gitignore exactly. The other 23 files in R/ are CLI
@@ -41,6 +39,9 @@ R/*
 !R/tumor_normal.R
 !config
 config/*.bak_*
+# Prior-state archives of the registry (config/archive_pre_colonpanel/ shipped in 0.1.7 and
+# 0.1.8 because the line above matches only the top level). Step 287.
+config/archive_*
 !www
 !scripts/docker_selfcheck.R
 
@@ -89,3 +90,9 @@ networks/tcga/**
 results/**
 !results/*/*.csv
 results/*/archive_*
+
+# ---- last, so no re-include above can bring them back ----
+# Docker lets the LAST matching line decide. These sat at the top until 0.1.8, where
+# !data/processed/* re-included Finder's data/processed/.DS_Store into the image. Step 287.
+**/.DS_Store
+**/.Rhistory

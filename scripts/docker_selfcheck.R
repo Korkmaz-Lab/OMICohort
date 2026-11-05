@@ -123,6 +123,17 @@ for (a in assets) if (!file.exists(file.path(ROOT, "www", a)))
   fail("www/%s (rendered by the About page)", a)
 note("    %d referenced, all present", length(assets))
 
+# --- 7b. nothing that should NOT ship --------------------------------------------------------
+# The other direction (2026-11-05, step 287). Finder's .DS_Store and the registry's prior-state
+# archives reached the 0.1.7 and 0.1.8 images through .dockerignore's re-includes; nothing here
+# could see them, because every check above asks only for what must be present. Checked in
+# the image itself, so Docker's own reading of .dockerignore is what is tested.
+note("[7b] no stray files")
+stray <- c(list.files(ROOT, pattern = "^\\.DS_Store$", recursive = TRUE, all.files = TRUE),
+           list.files(file.path(ROOT, "config"), pattern = "^archive_", include.dirs = TRUE))
+for (s in stray) { ok <- FALSE; cat("  SHOULD NOT SHIP: ", s, "\n", sep = "") }
+if (!length(stray)) note("    no .DS_Store, no config/archive_*")
+
 # --- 8. packages ---------------------------------------------------------------------------
 # The nine the running app loads. `viper` is deliberately NOT here: VIPER scores are
 # precomputed into viper_*.h5, so the image never needs that dependency chain.

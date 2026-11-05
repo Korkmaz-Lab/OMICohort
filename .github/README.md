@@ -190,7 +190,7 @@ button reads `CITATION.cff`.
 A result that has to be reproducible later should name a pinned version rather than `latest`:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.8
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.9
 ```
 
 ## Licence

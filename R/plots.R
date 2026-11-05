@@ -549,6 +549,58 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
   -1 - line_in * diff(graphics::par("usr")[3:4]) / graphics::par("pin")[2]
 }
 
+# The pooled label's place, below the separator line (step 286). metafor draws the separator
+# at y = 0 and centres its own label on the pooled row at y = -1 with pos = 4, which centres a
+# stacked plotmath label well above its middle: on the author's AATBC breast DFS export the
+# three-line label (k < POOL_MIN_K) reached up over the line, and at phone width into the last
+# cohort's label. A stacked atop() label cannot be placed by its measured height either: the
+# drawn box sat 2 pt above R's estimate on the Quartz PDF device and 7 pt above it on pdf(). So
+# metafor is handed an empty label, and this draws the lines one by one, one text line apart at
+# the type's own spacing (as .pooled_p_y() places the p line), each centred on its own y, which
+# every device does exactly. The block stays centred on the pooled row when its top line's
+# middle is a full line under the separator, and is lowered until it is when not. Returns the
+# top line's y.
+.draw_pooled_mlab <- function(z, mlines) {
+  L <- graphics::par("cin")[2] * z$cex * graphics::par("lheight") *
+       diff(graphics::par("usr")[3:4]) / graphics::par("pin")[2]
+  n <- length(mlines)
+  y <- min(-1 + (n - 1) * L / 2, -L)
+  # pos = 4 starts text half a character right of x; the label keeps that start, in line
+  # with the cohort labels metafor draws that way.
+  x <- z$textpos[1] + 0.5 * graphics::par("cxy")[1] * z$cex
+  for (i in seq_len(n))
+    graphics::text(x, y - (i - 1) * L, as.expression(mlines[[i]]), adj = c(0, 0.5), cex = z$cex)
+  y
+}
+
+# The margins metafor::forest() DRAWS with (step 286). It lowers the caller's by c(0, 3, 1, 1),
+# floored at 0, and puts the caller's back on exit (forest.rma, metafor 5.0.1). par("usr") stays
+# the forest's, but par("plt") and par("pin") return to the caller's region, so anything drawn
+# after it in user coordinates lands in a shifted frame and anything measured after it measures
+# the wrong region. The pooled p line was drawn that way from step 254, and the label checks of
+# step 286 first failed by exactly that shift. Read from metafor's source here rather than
+# trusted: tests/test_forest_label_fit.R checks the deparsed forest.rma still says it.
+.metafor_mar <- function() pmax(graphics::par("mar") - c(0, 3, 1, 1), 0)
+
+# The y range that has room for that label: metafor's own c(-2, k + top) (rows k..1, three
+# header rows), lowered at the bottom when the n lines, a line above them and one below, are
+# taller than the space under the separator. Solved in inches on the open device before
+# metafor draws, which plots with yaxs = "i" (the y range IS the plot's): with R the range and
+# G = (n + 2) lines, the bottom holds them when R (1 - G / pin) reaches k + top. The line is
+# measured at cex 1, which metafor only ever lowers, so it errs roomy. No ylim holds them when
+# that factor is not positive; metafor's own is then returned, and the label checks in
+# tests/test_forest_label_fit.R report the collision at every geometry the app and the
+# manuscript draw at.
+.pooled_ylim <- function(n, k) {
+  top <- k + 3
+  fr <- graphics::par(mar = .metafor_mar()); on.exit(graphics::par(fr))
+  pin_h <- graphics::par("pin")[2]
+  G <- (n + 2) * graphics::par("cin")[2] * graphics::par("lheight")
+  d <- 1 - G / pin_h
+  if (!(d > 0)) return(c(-2, top))
+  c(min(-2, top - top / d), top)
+}
+
 # Stack the label's lines into one plotmath expression, LEFT-ALIGNED.
 #
 # atop() is the only way to get several plotmath lines into a single label ("\n" is a string
@@ -670,6 +722,18 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
 # digits = 2, level = 95 -- and if that ever stops being true this measurement is taken
 # against the wrong string, so tests/test_forest_annot_fit.R measures the DRAWN gap rather
 # than trusting this format.
+# One panel's pooled label lines, as forest_plot() draws them, or none below two cohorts.
+.panel_mlines <- function(res) {
+  est <- Filter(function(x) isFALSE(x$skipped) && !is.null(x$logHR), res$per_cohort)
+  if (length(est) < 2) return(list())
+  yi <- vapply(est, `[[`, numeric(1), "logHR")
+  se <- vapply(est, `[[`, numeric(1), "se")
+  m <- tryCatch(.forest_rma(yi, se^2), error = function(e) NULL)
+  if (is.null(m)) return(list())
+  .pooled_mlab(sum(vapply(est, `[[`, numeric(1), "n")), sum(vapply(est, `[[`, numeric(1), "events")),
+               m$I2, length(est))
+}
+
 .forest_annot <- function(yi, se) {
   z <- stats::qnorm(0.975)
   sprintf("%.2f [%.2f, %.2f]", exp(yi), exp(yi - z * se), exp(yi + z * se))
@@ -701,8 +765,9 @@ mq_forest_xrange <- function(panels) {
   # first attempt at this fix: each panel then resolves its own xlim, and a shared alim with
   # per-panel xlim is five axes wearing one set of tick labels. Carried as an attribute so the
   # value stays the two-number range every existing caller and test passes around.
-  attr(out, "run_slab") <- unlist(lapply(panels, function(e)
-    if (is.null(e$res)) character(0) else .panel_slab(e$res)), use.names = FALSE)
+  # The pooled labels share the label column with the cohort labels (step 286).
+  attr(out, "run_slab") <- as.expression(do.call(c, lapply(panels, function(e)
+    if (is.null(e$res)) list() else c(as.list(.panel_slab(e$res)), .panel_mlines(e$res)))))
   attr(out, "run_annot") <- unlist(lapply(panels, function(e)
     if (is.null(e$res)) character(0) else .panel_annot(e$res)), use.names = FALSE)
   out
@@ -734,7 +799,7 @@ FOREST_GUTTER_IN <- 0.12
 # all rounded OUTWARD. It is here because the failure it catches is silent -- a clipped alim
 # turns real intervals into arrows -- and because "metafor rounds outward" is an assumption
 # about someone else's code, not a fact about ours.
-.forest_axis <- function(xr) {
+.forest_axis <- function(xr, din = c(FOREST_WIDTH_IN, 5)) {
   # The caller's device is restored BY NAME, not by trusting dev.off() to fall back to it.
   # dev.off() makes "the next device in the list" current, which is the caller's only when
   # the caller's is the only one open -- and under Shiny it is not: renderPlot holds its own
@@ -745,7 +810,7 @@ FOREST_GUTTER_IN <- 0.12
   # could not see it.
   cur <- grDevices::dev.cur()
   f <- tempfile(fileext = ".pdf")
-  grDevices::pdf(f, width = FOREST_WIDTH_IN, height = 5)
+  grDevices::pdf(f, width = din[1], height = din[2])
   on.exit({
     grDevices::dev.off()
     if (cur != 1L) grDevices::dev.set(cur)   # 1 is the null device: nothing to go back to
@@ -951,7 +1016,12 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
 
   # EMPTY when xrange is NULL, so metafor is called exactly as it was before step 55 and
   # the single-panel figure is unchanged -- see the note on forest_plot()'s signature.
-  ax   <- if (is.null(xrange)) list() else .forest_axis(.check_xrange(xrange))
+  # The columns are fitted at the width of the device drawn on (step 286). Text is a fixed
+  # size in inches, so gutters fitted at the export width left the pooled label running into
+  # the diamond on a phone. Every panel of one Multiple query run is drawn at the same width,
+  # so they still share one ruler.
+  ax   <- if (is.null(xrange)) list() else
+            .forest_axis(.check_xrange(xrange), din = graphics::par("din"))
   head <- c(FOREST_SLAB_HEADER, FOREST_HR_HEADER)
   # Single-axis forests get their label gutter fitted; shared-axis panels must not, or the
   # one ruler becomes several. See the note on .slab_gutter().
@@ -961,10 +1031,33 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
     m <- .forest_rma(yi, vi)
     mlines <- .pooled_mlab(sum(n), sum(ev), m$I2, length(est))
     mlab   <- .stack_left(mlines)
-    base <- list(m, transf = exp, refline = 1, slab = slab,
-                 xlab = xlab, header = head, mlab = mlab)
-    z <- do.call(metafor::forest, c(base, .gutter(base, ax, slab)))
+    # THE AXIS HOLDS THE DIAMOND (step 286). metafor fits its axis to the cohorts' intervals
+    # and cuts the pooled polygon at it without a mark. Since 0.1.8 the pooled interval is
+    # Hartung-Knapp, honestly wide at two to four cohorts, and on the author's AATBC breast
+    # DFS forest (0.62 to 1.47 on an axis of 0.7 to 1.2) it came out as a flat bar. When the
+    # diamond reaches past every cohort, the axis is fitted to everything drawn, by the
+    # function the Multiple query's shared axis already uses; otherwise metafor's own axis
+    # stands and the figure is as before.
+    if (is.null(xrange)) {
+      q  <- stats::qnorm(0.975)
+      cb <- exp(range(c(yi - q * sqrt(vi), yi + q * sqrt(vi))))
+      b  <- .forest_bounds(res)
+      # .forest_axis() fits the annotation column; the label column is left to .slab_gutter()
+      # below, which measures on the device actually drawn on (.forest_axis() measures at the
+      # export width, and at phone width the pooled label then ran into the diamond).
+      if (b[1] < cb[1] || b[2] > cb[2])
+        ax <- .forest_axis(structure(b, run_annot = .panel_annot(res)))
+    }
+    # The pooled label is drawn by .draw_pooled_mlab(), not by metafor: see there. It sits in
+    # the label column, so the gutter is fitted to it as well as to the cohort labels.
+    base <- list(m, transf = exp, refline = 1, slab = slab, xlab = xlab, header = head,
+                 mlab = "", ylim = .pooled_ylim(length(mlines), length(est)))
+    z <- do.call(metafor::forest, c(base, .gutter(base, ax, c(slab, mlab))))
     z$mlab <- mlab; z$mlab_lines <- mlines
+    # Everything below is drawn in metafor's frame, not the caller's: see .metafor_mar().
+    fr <- graphics::par(mar = .metafor_mar())
+    on.exit(graphics::par(fr), add = TRUE, after = FALSE)
+    z$mlab_y <- .draw_pooled_mlab(z, mlines)
     # The pooled p, under the pooled HR [95% CI] and right-aligned with it: metafor draws that
     # column at textpos[2] with pos = 2, and so does this. It must never be wider than the
     # line above it, because then it sits inside the column both gutters were already fitted
@@ -979,6 +1072,7 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
                    plab, pann))
     z$pooled_p <- plab; z$pooled_p_y <- .pooled_p_y(z)
     graphics::text(z$textpos[2], z$pooled_p_y, plab, pos = 2, cex = z$cex)
+    graphics::par(fr)
   } else {
     # Single cohort: no pooling — plot the lone estimate with its normal CI.
     base <- list(x = yi, vi = vi, transf = exp, refline = 1,
@@ -992,7 +1086,10 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
   # The plot region as DRAWN, for the same reason: on.exit() restores the caller's margins, so
   # a caller reading par("pin") after this returns measures a different region. Heights in user
   # units only convert to inches through these (tests/test_forest_label_fit.R, step 256).
-  z$pin <- graphics::par("pin"); z$usr <- graphics::par("usr")
+  # The region the forest was DRAWN in, metafor's frame (.metafor_mar()), not the caller's.
+  fr <- graphics::par(mar = .metafor_mar())
+  z$pin <- graphics::par("pin"); z$usr <- graphics::par("usr"); z$plt <- graphics::par("plt")
+  graphics::par(fr)
   # Carried out on the layout for the same reason mlab and slab are: what the figure DREW,
   # not what it could have drawn. NULL is the assertable difference between "suppressed"
   # and "the string happened to come out empty".
