@@ -103,10 +103,11 @@ note("    %d CSVs across %d tissues",
 # --- 6. the two raw inputs that are runtime reads -------------------------------------------
 # Both are annotation layers, not survival input; both are read straight off data/raw.
 note("[6] reference inputs")
-for (f in c("data/raw/depmap/CRISPRInferredCommonEssentials.csv",
-            "data/raw/depmap/depmap_screened_genes.txt",
-            "data/raw/depmap/SOURCE.txt",
-            "data/raw/cptac/cptac_proteomics.tsv.gz"))
+raw_reads <- c("data/raw/depmap/CRISPRInferredCommonEssentials.csv",
+               "data/raw/depmap/depmap_screened_genes.txt",
+               "data/raw/depmap/SOURCE.txt",
+               "data/raw/cptac/cptac_proteomics.tsv.gz")
+for (f in raw_reads)
   if (!file.exists(file.path(ROOT, f))) fail("%s", f)
 
 # --- 7. branding assets --------------------------------------------------------------------
@@ -127,12 +128,20 @@ note("    %d referenced, all present", length(assets))
 # The other direction (2026-11-05, step 287). Finder's .DS_Store and the registry's prior-state
 # archives reached the 0.1.7 and 0.1.8 images through .dockerignore's re-includes; nothing here
 # could see them, because every check above asks only for what must be present. Checked in
-# the image itself, so Docker's own reading of .dockerignore is what is tested.
+# the image itself, so Docker's own reading of .dockerignore is what is tested. Step 287
+# looked for the two cases it had found; 0.1.9 still shipped data/processed/archive_clinical_db_bak/
+# and data/raw/cptac/cptac_clinical.csv (step 290). So since step 291 it is the class: no
+# prior-state copy anywhere (config/archive_* included), and under data/raw exactly the
+# runtime reads section 6 requires, nothing more.
 note("[7b] no stray files")
-stray <- c(list.files(ROOT, pattern = "^\\.DS_Store$", recursive = TRUE, all.files = TRUE),
-           list.files(file.path(ROOT, "config"), pattern = "^archive_", include.dirs = TRUE))
-for (s in stray) { ok <- FALSE; cat("  SHOULD NOT SHIP: ", s, "\n", sep = "") }
-if (!length(stray)) note("    no .DS_Store, no config/archive_*")
+all_files <- list.files(ROOT, recursive = TRUE, all.files = TRUE)
+stray <- c(grep("(^|/)\\.DS_Store$", all_files, value = TRUE),
+           grep("(^|/)[^/]*(archive|backup|\\.bak|_bak|bak_|guardbak|\\.orig|\\.pre_)[^/]*(/|$)",
+                all_files, value = TRUE, ignore.case = TRUE),
+           setdiff(grep("^data/raw/", all_files, value = TRUE), raw_reads))
+for (s in unique(stray)) { ok <- FALSE; cat("  SHOULD NOT SHIP: ", s, "\n", sep = "") }
+if (!length(stray)) note("    no .DS_Store, no archive or backup copy, data/raw holds only the %d runtime reads",
+                         length(raw_reads))
 
 # --- 8. packages ---------------------------------------------------------------------------
 # The nine the running app loads. `viper` is deliberately NOT here: VIPER scores are

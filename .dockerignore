@@ -54,7 +54,12 @@ config/archive_*
 !data
 data/**
 !data/processed/*
-data/processed/archive_pre_*
+# Every subdirectory of data/processed is a prior state; the app opens top-level files only.
+# archive_* takes the archives whole; the */* line keeps out the contents of any other
+# subdirectory, present or future. data/processed/archive_clinical_db_bak/ matched no line here
+# and shipped in 0.1.7 to 0.1.9 (step 290); fixed for the class at step 291.
+data/processed/archive_*
+data/processed/*/*
 data/processed/viper_tcga_only_backup
 data/processed/*.bak
 data/processed/*.bak_*
@@ -63,11 +68,15 @@ data/processed/*.guardbak
 
 # ---- the two raw inputs that ARE runtime reads ----
 # depmap: the common-essential flag (R/depmap.R). cptac: protein detectability
-# (R/cptac.R). Every other data/raw/* subtree is pipeline input only.
-!data/raw/depmap
-!data/raw/depmap/**
-!data/raw/cptac
-!data/raw/cptac/**
+# (R/cptac.R). Every other data/raw/* subtree is pipeline input only. Named file by file, as
+# scripts/docker_selfcheck.R section 6 names them (tests/test_release_files.R holds the two
+# lists equal): data/raw/cptac/** also let through cptac_clinical.csv, which nothing reads
+# (step 290, fixed at step 291). No line names the folders themselves: re-including a folder
+# re-includes everything in it, which is how the CSV got through.
+!data/raw/depmap/CRISPRInferredCommonEssentials.csv
+!data/raw/depmap/depmap_screened_genes.txt
+!data/raw/depmap/SOURCE.txt
+!data/raw/cptac/cptac_proteomics.tsv.gz
 
 # ---- ARACNe regulons ----
 # The Guide states "8 tissue-specific networks" and reads the .rds files to say
