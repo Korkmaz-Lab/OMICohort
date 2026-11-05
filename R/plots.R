@@ -555,22 +555,50 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
 # three-line label (k < POOL_MIN_K) reached up over the line, and at phone width into the last
 # cohort's label. A stacked atop() label cannot be placed by its measured height either: the
 # drawn box sat 2 pt above R's estimate on the Quartz PDF device and 7 pt above it on pdf(). So
-# metafor is handed an empty label, and this draws the lines one by one, one text line apart at
-# the type's own spacing (as .pooled_p_y() places the p line), each centred on its own y, which
-# every device does exactly. The block stays centred on the pooled row when its top line's
-# middle is a full line under the separator, and is lowered until it is when not. Returns the
-# top line's y.
+# metafor is handed an empty label, and this draws the lines one by one, each centred on its own
+# y, which every device does exactly, at the offsets .mlab_offsets() gives. The block stays
+# centred on the pooled row when its top line's middle is a full line under the separator, and
+# is lowered until it is when not. Returns the top line's y.
 .draw_pooled_mlab <- function(z, mlines) {
-  L <- graphics::par("cin")[2] * z$cex * graphics::par("lheight") *
-       diff(graphics::par("usr")[3:4]) / graphics::par("pin")[2]
-  n <- length(mlines)
-  y <- min(-1 + (n - 1) * L / 2, -L)
+  u <- diff(graphics::par("usr")[3:4]) / graphics::par("pin")[2]   # user units per inch
+  L <- graphics::par("cin")[2] * z$cex * graphics::par("lheight") * u
+  off <- .mlab_offsets(mlines, z$cex) * u
+  y <- min(-1 + off[length(off)] / 2, -L)
   # pos = 4 starts text half a character right of x; the label keeps that start, in line
   # with the cohort labels metafor draws that way.
   x <- z$textpos[1] + 0.5 * graphics::par("cxy")[1] * z$cex
-  for (i in seq_len(n))
-    graphics::text(x, y - (i - 1) * L, as.expression(mlines[[i]]), adj = c(0, 0.5), cex = z$cex)
+  for (i in seq_along(mlines))
+    graphics::text(x, y - off[i], as.expression(mlines[[i]]), adj = c(0, 0.5), cex = z$cex)
   y
+}
+
+# How far below the first line each line's middle goes, in inches (step 288). Step 286 put
+# the middles one plain text line apart, which has no room for a superscript: in the 0.1.9
+# build the 2 of tau^2 sat on the "=" of the I^2 line above it. Lines of type are spaced by
+# their BASELINES, one line apart, so each line here gets its baseline one line under the one
+# above, lowered further by however far its own box rises above the first line's (a
+# superscript), and by however far the line above it sinks below the first line's (a
+# subscript). The first line is plain text. Two plain lines come out one line apart, as before.
+#
+# text() centres a plotmath line on its box, so the baseline is placed through the box's
+# height above it (H) and depth below it (D), which strheight() only gives summed. D is read
+# by setting each line beside a phantom taller than any line and with no depth: the pair is
+# that phantom's height plus the line's depth. A second, taller phantom must give the same D,
+# or the line rose above the first one and the reading is wrong, so it stops. Measured in
+# inches, which works on a device before anything is drawn, so .pooled_ylim() can use it too.
+.mlab_offsets <- function(mlines, cex) {
+  n <- length(mlines)
+  if (n < 2L) return(0)
+  L  <- graphics::par("cin")[2] * cex * graphics::par("lheight")
+  ht <- function(e) graphics::strheight(as.expression(e), units = "inches", cex = cex)
+  dp <- function(probe) vapply(mlines, function(e) ht(bquote(.(e) * phantom(.(probe)))), numeric(1)) - ht(bquote(phantom(.(probe))))
+  D  <- dp(quote(M^M^M))
+  if (any(abs(dp(quote(M^M^M^M)) - D) > 1e-9))
+    stop(".mlab_offsets(): a pooled label line rises above the probe used to measure its depth")
+  H  <- vapply(mlines, ht, numeric(1)) - D
+  base <- cumsum(c(0, L + pmax(0, H[-1] - H[1]) + pmax(0, D[-n] - D[1])))
+  mid  <- base - (H - D) / 2
+  mid - mid[1]
 }
 
 # The margins metafor::forest() DRAWS with (step 286). It lowers the caller's by c(0, 3, 1, 1),
@@ -583,19 +611,21 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
 .metafor_mar <- function() pmax(graphics::par("mar") - c(0, 3, 1, 1), 0)
 
 # The y range that has room for that label: metafor's own c(-2, k + top) (rows k..1, three
-# header rows), lowered at the bottom when the n lines, a line above them and one below, are
-# taller than the space under the separator. Solved in inches on the open device before
+# header rows), lowered at the bottom when the label's lines, a line above them and one below,
+# are taller than the space under the separator. Solved in inches on the open device before
 # metafor draws, which plots with yaxs = "i" (the y range IS the plot's): with R the range and
-# G = (n + 2) lines, the bottom holds them when R (1 - G / pin) reaches k + top. The line is
-# measured at cex 1, which metafor only ever lowers, so it errs roomy. No ylim holds them when
+# G the label's span (.mlab_offsets(), step 288) plus three lines, the bottom holds them when
+# R (1 - G / pin) reaches k + top. Measured at cex 1, which metafor only ever lowers, so it
+# errs roomy. No ylim holds them when
 # that factor is not positive; metafor's own is then returned, and the label checks in
 # tests/test_forest_label_fit.R report the collision at every geometry the app and the
 # manuscript draw at.
-.pooled_ylim <- function(n, k) {
+.pooled_ylim <- function(mlines, k) {
   top <- k + 3
   fr <- graphics::par(mar = .metafor_mar()); on.exit(graphics::par(fr))
   pin_h <- graphics::par("pin")[2]
-  G <- (n + 2) * graphics::par("cin")[2] * graphics::par("lheight")
+  off <- .mlab_offsets(mlines, 1)
+  G <- off[length(off)] + 3 * graphics::par("cin")[2] * graphics::par("lheight")
   d <- 1 - G / pin_h
   if (!(d > 0)) return(c(-2, top))
   c(min(-2, top - top / d), top)
@@ -1051,7 +1081,7 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
     # The pooled label is drawn by .draw_pooled_mlab(), not by metafor: see there. It sits in
     # the label column, so the gutter is fitted to it as well as to the cohort labels.
     base <- list(m, transf = exp, refline = 1, slab = slab, xlab = xlab, header = head,
-                 mlab = "", ylim = .pooled_ylim(length(mlines), length(est)))
+                 mlab = "", ylim = .pooled_ylim(mlines, length(est)))
     z <- do.call(metafor::forest, c(base, .gutter(base, ax, c(slab, mlab))))
     z$mlab <- mlab; z$mlab_lines <- mlines
     # Everything below is drawn in metafor's frame, not the caller's: see .metafor_mar().
