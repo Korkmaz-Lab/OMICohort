@@ -66,9 +66,10 @@ It operates unprivileged, requires no network access after startup, and provides
 Execute the following command in your terminal:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:latest
+docker run --pull always --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:latest
 ```
 
+The command checks for the current release each time, so a machine that ran an older version gets the new one.
 Once started, navigate to http://localhost:7654 in your web browser.
 
 ## The problem it is built around
@@ -190,7 +191,7 @@ button reads `CITATION.cff`.
 A result that has to be reproducible later should name a pinned version rather than `latest`:
 
 ```bash
-docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.10
+docker run --rm -p 7654:7654 ghcr.io/korkmaz-lab/omicohort:0.1.11
 ```
 
 ## Licence

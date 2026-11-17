@@ -357,3 +357,115 @@ regulon_paths_for <- function(cancer_type, registry = COHORTS) {
   p <- file.path(ROOT, "networks", dirs, sprintf("regulon_%s.rds", dirs))
   p[file.exists(p)]
 }
+
+# ---- the regulon drawer (release 0.1.11, item 4) -------------------------------------------
+#
+# What the drawer under a queried TF shows, as data; app.R only lays it out. The networks are
+# exactly the ones behind the tissue's VIPER scores: breast's three cohorts are scored by
+# metaVIPER with BOTH breast regulons (R/run_metaviper.R), every other tissue with its one TCGA
+# network, and gse9891 (the ovarian replication network) scores nothing the app reads.
+# tests/test_regulon_drawer.R proves that from the VIPER matrices themselves, cohort by cohort.
+#
+# Wording is part of the data: "inferred targets", "inferred activated / repressed". ARACNe
+# infers a target from co-expression, and the sign is the direction of that co-expression.
+
+# A reader's name for each network directory. Every network_dir in the registry must have one.
+NETWORK_LABEL <- c(tcga_brca = "TCGA-BRCA", scanb = "SCAN-B", tcga_ov = "TCGA-OV",
+                   tcga_luad = "TCGA-LUAD", tcga_lusc = "TCGA-LUSC", tcga_coad = "TCGA-COAD",
+                   tcga_gbm = "TCGA-GBM", tcga_lgg = "TCGA-LGG")
+
+REGULON_NOTE <- paste(
+  "ARACNe infers these targets from co-expression across tumours; activated or repressed is",
+  "the direction of that co-expression, not evidence of binding or of an experiment.")
+
+# The network directories behind a tissue's VIPER scores (the ones on disk), in registry order.
+regulon_networks_for <- function(cancer_type, registry = COHORTS)
+  basename(dirname(regulon_paths_for(cancer_type, registry)))
+
+# One TF's targets in one regulon, as a data frame ranked by |tfmode| x likelihood.
+.regulon_targets <- function(x) {
+  tm <- unname(x$tfmode); lk <- unname(x$likelihood)
+  d <- data.frame(target = names(x$tfmode), tfmode = tm, likelihood = lk,
+                  score = abs(tm) * lk, stringsAsFactors = FALSE)
+  # A mode of exactly 0 has no direction; none of the eight regulons holds one (step 322), and
+  # one would be a claim this drawer cannot word, so it stops.
+  if (any(d$tfmode == 0)) stop(".regulon_targets(): a target with tfmode 0 has no direction")
+  d$direction <- ifelse(d$tfmode > 0, "inferred activated", "inferred repressed")
+  d[order(-d$score), , drop = FALSE]
+}
+
+# The drawer's data for `tf` in `cancer_type`, or NULL when `tf` is a regulator in none of the
+# tissue's networks (a non-TF, a probe set, an empty selector). `absent_from` names a network of
+# the tissue in which `tf` is not a regulator (breast can have one regulon and not the other).
+regulon_of <- function(tf, cancer_type, registry = COHORTS, top = 10L) {
+  if (length(tf) != 1L || is.na(tf) || !nzchar(tf)) return(NULL)
+  dirs <- regulon_networks_for(cancer_type, registry)
+  nets <- list(); absent <- character(0)
+  for (d in dirs) {
+    R <- readRDS(regulon_paths_for(cancer_type, registry)[dirs == d])
+    if (is.null(R[[tf]])) { absent <- c(absent, d); next }
+    tg <- .regulon_targets(R[[tf]])
+    up <- tg[tg$tfmode > 0, , drop = FALSE]; dn <- tg[tg$tfmode < 0, , drop = FALSE]
+    # The TFs that have `tf` among their own inferred targets, strongest first.
+    rg <- do.call(rbind, lapply(setdiff(names(R), tf), function(t) {
+      m <- R[[t]]$tfmode
+      if (!(tf %in% names(m))) return(NULL)
+      i <- match(tf, names(m)); v <- unname(m[i]); l <- unname(R[[t]]$likelihood[i])
+      data.frame(tf = t, tfmode = v, likelihood = l, score = abs(v) * l,
+                 direction = if (v > 0) "inferred activated" else if (v < 0) "inferred repressed" else stop("tfmode 0"),
+                 stringsAsFactors = FALSE)
+    }))
+    if (is.null(rg)) rg <- data.frame(tf = character(0), tfmode = numeric(0), likelihood = numeric(0),
+                                      score = numeric(0), direction = character(0))
+    rg <- rg[order(-rg$score), , drop = FALSE]
+    nets[[d]] <- list(dir = d, label = NETWORK_LABEL[[d]], n = nrow(tg), n_act = nrow(up),
+                      n_rep = nrow(dn), top_act = utils::head(up, top), top_rep = utils::head(dn, top),
+                      all = tg, regulators = utils::head(rg, top), n_regulators = nrow(rg))
+  }
+  if (!length(nets)) return(NULL)
+  list(tf = tf, cancer_type = cancer_type, networks = nets, absent_from = absent)
+}
+
+regulon_summary_line <- function(net, tf)
+  sprintf("Regulon of %s in the %s network: %d inferred targets, %d activated, %d repressed.",
+          tf, net$label, net$n, net$n_act, net$n_rep)
+
+# Every target of every network shown, one row each; `network` names the network on each row.
+regulon_csv <- function(rg) {
+  out <- do.call(rbind, lapply(rg$networks, function(net)
+    data.frame(network = net$label, tf = rg$tf, target = net$all$target,
+               direction = net$all$direction, tfmode = net$all$tfmode,
+               likelihood = net$all$likelihood, score = net$all$score,
+               stringsAsFactors = FALSE)))
+  rownames(out) <- NULL
+  out
+}
+regulon_csv_name <- function(rg)
+  sprintf("regulon_%s_%s_%s.csv", gsub("[^A-Za-z0-9._-]+", "_", rg$tf), rg$cancer_type,
+          paste(names(rg$networks), collapse = "_"))
+
+# Every sentence the drawer prints, worded here so tests/test_regulon_drawer.R can hold them
+# (app.R only lays them out). `integrated` is NULL for a tissue scored with one network.
+regulon_sentences <- function(rg, top = 10L) {
+  tf <- rg$tf
+  dirs <- c(names(rg$networks), rg$absent_from)
+  labs <- unname(NETWORK_LABEL[dirs])
+  nets <- lapply(rg$networks, function(net) {
+    n <- net$n_regulators
+    reg <- if (n == 0) sprintf("No TF in the %s network has %s among its inferred targets.", net$label, tf)
+           else if (n == 1) sprintf("1 TF in the %s network has %s among its inferred targets.", net$label, tf)
+           else sprintf("%d TFs in the %s network have %s among their inferred targets%s.", n, net$label, tf,
+                        if (n > top) sprintf("; the %d strongest are shown", top) else "")
+    list(summary = regulon_summary_line(net, tf), regulators = reg)
+  })
+  list(title = sprintf("Regulon of %s", tf),
+       integrated = if (length(dirs) > 1)
+         sprintf("%s VIPER scores combine the %s networks (metaVIPER), so each regulon is shown.",
+                 cancer_label_of(rg$cancer_type),
+                 paste(c(paste(labs[-length(labs)], collapse = ", "), labs[length(labs)]), collapse = " and ")),
+       networks = nets,
+       absent = vapply(rg$absent_from, function(d)
+         sprintf("%s is not a regulator in the %s network.", tf, NETWORK_LABEL[[d]]), character(1),
+         USE.NAMES = FALSE),
+       note = REGULON_NOTE)
+}

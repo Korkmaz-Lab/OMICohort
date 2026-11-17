@@ -532,6 +532,34 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
   sprintf("p = %s", fmt_p(p))
 }
 
+# The pooled HR in one plain line (0.1.11, item 2), in the author's wording: "Higher YBX1
+# (mRNA) is associated with a 59% higher death rate per SD." when the pooled p is below 0.05,
+# otherwise "No clear association with the death rate (p = 0.652)." The p is the one the forest
+# prints under the diamond (.pooled_p_label()); no CI, since the plot shows it; "rate", never
+# "risk". NULL when there is nothing pooled to read (k < 2, or a number that is not finite).
+# An endpoint with no wording stops: RATE_NAME must cover every endpoint a tissue declares,
+# and tests/test_pooled_reading.R enumerates them.
+# The reading line's threshold, a constant so the Guide prints it rather than typing it
+# (tests/test_guide_derived.R, step 324).
+READING_ALPHA <- 0.05
+RATE_NAME <- c(OS = "death rate", DFS = "recurrence or progression rate",
+               DSS = "disease-specific death rate")
+pooled_reading <- function(res) {
+  pl <- res$pooled
+  if (is.null(pl) || is.null(pl$k) || pl$k < 2) return(NULL)
+  HR <- pl$HR; p <- pl$p
+  if (length(HR) != 1L || length(p) != 1L || !is.finite(HR) || !is.finite(p) || HR <= 0)
+    return(NULL)
+  if (!(res$endpoint %in% names(RATE_NAME)))
+    stop("pooled_reading(): no rate wording for endpoint '", res$endpoint, "'")
+  rate <- RATE_NAME[[res$endpoint]]
+  if (p >= READING_ALPHA) return(sprintf("No clear association with the %s (%s).", rate, .pooled_p_label(p)))
+  pct <- round(100 * abs(HR - 1))
+  sprintf("Higher %s is associated with a %s %s %s per SD.", attr(res, "feature") %||% "score",
+          if (pct < 1) "less than 1%" else sprintf("%d%%", pct),
+          if (HR > 1) "higher" else "lower", rate)
+}
+
 # Where that line goes: one text line under the pooled HR [95% CI] (y = -1, metafor's fixed
 # summary row), at the type's own line spacing: par("cin") is the character cell in inches,
 # scaled by metafor's resolved cex and by lheight, and converted to user units on the plot just
@@ -723,10 +751,75 @@ MQ_DETAIL_HIDE <- "Hide cohort KM curves and per-cohort table"
     # If this fails, forest_plot() fails on the same panel for the same reason and draws
     # nothing -- so the diamond that is not there cannot need room. The cohorts still do.
     m <- tryCatch(.forest_rma(yi, se^2), error = function(e) NULL)
-    if (!is.null(m)) { lo <- c(lo, m$ci.lb); hi <- c(hi, m$ci.ub) }
+    # 0.1.11: an EXTREME diamond (.forest_extreme()) is left out, so the axis is fitted to the
+    # cohorts and the diamond is cut at the axis end with an arrowhead; its full interval stays
+    # in the right column. On a shared axis this keeps one extreme panel from flattening the run.
+    if (!is.null(m) && !.diamond_extreme(min(lo), max(hi), m$ci.lb, m$ci.ub)) {
+      lo <- c(lo, m$ci.lb); hi <- c(hi, m$ci.ub)
+    }
   }
-  exp(c(min(lo), max(hi)))
+  # HR = 1 is always on the axis (0.1.11 decision 5): the reference line is what a reader
+  # reads every interval against.
+  exp(c(min(lo, 0), max(hi, 0)))
 }
+
+# 0.1.11, item 1: a diamond is EXTREME when its width on the log scale is more than
+# FOREST_EXTREME_RATIO times the span of all the cohorts' intervals. The 3 is a chosen cut, not
+# derived (scope file): on the author's prototype queries it clips only the two-cohort YBX1
+# VIPER breast DFS forest (ratio about 5.5). Arguments are on the log scale.
+FOREST_EXTREME_RATIO <- 3
+.diamond_extreme <- function(c_lo, c_hi, d_lo, d_hi)
+  isTRUE((d_hi - d_lo) > FOREST_EXTREME_RATIO * (c_hi - c_lo))
+
+.forest_extreme <- function(res) {
+  est <- Filter(function(x) isFALSE(x$skipped) && !is.null(x$logHR), res$per_cohort)
+  if (length(est) < 2) return(FALSE)
+  yi <- vapply(est, `[[`, numeric(1), "logHR")
+  se <- vapply(est, `[[`, numeric(1), "se")
+  m <- tryCatch(.forest_rma(yi, se^2), error = function(e) NULL)
+  if (is.null(m)) return(FALSE)
+  q <- stats::qnorm(0.975)
+  .diamond_extreme(min(yi - q * se), max(yi + q * se), m$ci.lb, m$ci.ub)
+}
+
+# Tick values a reader can read on a log axis (0.1.11). Ladders finest first; the first that
+# gives 3 to 7 ticks enclosing the range (and 1) wins. A range too narrow for three ticks is
+# widened by one step each side until it has three. tests/test_forest_log_axis.R holds this
+# over a 200 x 200 grid of ranges from 0.001 to 1000, which every scan's intervals lie inside.
+FOREST_TICK_LADDERS <- list(
+  c(0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2),
+  c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4),
+  c(0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100),
+  c(0.001, 0.01, 0.1, 1, 10, 100, 1000))
+.log_tick_options <- function(lo, hi) {
+  lo <- min(lo, 1); hi <- max(hi, 1)
+  out <- list()
+  for (L in FOREST_TICK_LADDERS) {
+    if (!any(L <= lo) || !any(L >= hi)) next
+    i0 <- max(which(L <= lo)); i1 <- min(which(L >= hi))
+    while (i1 - i0 + 1L < 3L && (i0 > 1L || i1 < length(L))) {
+      if (i0 > 1L) i0 <- i0 - 1L
+      if (i1 - i0 + 1L < 3L && i1 < length(L)) i1 <- i1 + 1L
+    }
+    n <- i1 - i0 + 1L
+    if (n >= 3L && n <= 7L) out[[length(out) + 1L]] <- L[i0:i1]
+  }
+  if (!length(out))
+    stop(sprintf(".log_ticks(): no ladder gives 3 to 7 readable ticks for [%g, %g]", lo, hi))
+  out
+}
+.log_ticks <- function(lo, hi) .log_tick_options(lo, hi)[[1]]
+# The least room between two tick labels, in inches, before a coarser ladder is used.
+FOREST_TICK_GAP_IN <- 0.1
+# Plain decimals without trailing zeros: "0.25", "0.5", "1", "1000". Passed to metafor as
+# at.lab, which it draws as given, so the axis does not read "0.50" or "1.00".
+.tick_labels <- function(ticks)
+  sub("\\.$", "", sub("0+$", "", formatC(ticks, format = "f", digits = 3)))
+
+# The author's item 9 (0.1.11): the reference line explained on the figure, in the header row
+# centred above it. metafor leaves the middle of that row empty; the row under the header rule
+# is where the top cohort's interval runs.
+FOREST_NULL_LABEL <- "HR = 1: no effect"
 
 # The union of what every panel of one Multiple query run draws, or NULL.
 #
@@ -805,14 +898,16 @@ mq_forest_xrange <- function(panels) {
 
 # The gap between the longest label and the plot region. One constant, both paths.
 FOREST_GUTTER_IN <- 0.12
+# The length of the arrowhead on an extreme diamond's cut end (0.1.11): kept inside the gutter.
+# tests/test_forest_log_axis.R section c holds it shorter than FOREST_GUTTER_IN.
+FOREST_ARROW_IN <- 0.09
 
-# The axis for a shared range: metafor's OWN layout for it.
+# The axis for a range, on the LOG HR scale (0.1.11). Every forest takes its axis from here.
 #
-# The alternative was to compute alim/xlim/at here -- and that would have invented a second
-# axis convention for this tool, one that five panels use and every other forest does not.
-# Instead the range is handed to metafor on a throwaway device and the (alim, xlim, at) it
-# chooses is read back and reused. The rule applied is metafor's, exactly as on every other
-# forest in the app; the only thing that changed is the DATA the rule is applied to.
+# Until 0.1.10 this handed the range to metafor and read back metafor's own (alim, xlim, at),
+# on a linear HR axis. On a log axis metafor's own ticks are unreadable values (0.61, 1.65), so
+# the ticks now come from .log_ticks() and alim is their range; metafor still lays out xlim on
+# a throwaway device, and the gutters below are solved as before, in log units.
 #
 # Three measured facts make this safe, and none of them is obvious:
 #
@@ -847,68 +942,83 @@ FOREST_GUTTER_IN <- 0.12
     unlink(f)
   })
   op <- graphics::par(mar = c(5, 4, 3, 2))
-  z <- metafor::forest(x = xr, ci.lb = c(xr[1], xr[1]), ci.ub = c(xr[2], xr[2]),
-                       refline = 1, slab = c("a", "b"),
-                       header = c("Cohort", FOREST_HR_HEADER))
-  # One gutter for the whole run, fitted here because this is the one place the shared ruler
-  # is computed. Measured at metafor's own resolved cex on a device of the export's width; the
-  # app's on-screen forests are WIDER, where the same xlim leaves more room rather than less,
-  # so a gutter fitted here is sufficient everywhere it is used. Panels all resolve cex = 1
-  # under forest_height_in()'s sizing, and tests/test_forest_slab_fit.R asserts that rather
-  # than leaving it as an assumption -- if a panel ever shrinks its text, this measurement
-  # would be taken at the wrong size and the test says so instead of the figure colliding.
-  #
-  # THE SAME PROBLEM EXISTS ON THE RIGHT, and went unnoticed until Figure S2 was printed.
-  # metafor right-aligns the annotation column at xlim[2] and derives no clearance from
-  # alim[2], so a cohort whose interval reaches the end of the SHARED range has its whisker
-  # cap drawn hard against its own "2.06 [1.57, 2.72]". On a single-axis forest this cannot
-  # happen, because metafor sets alim from that panel's own data with room to spare; it is
-  # specific to a range one panel did not define. Seen at GSE43107_LGG in Figure S2 panel A.
-  #
-  # The two gutters are COUPLED: widening either bound stretches the same plot region over
-  # more user units, so a column measured in inches covers more of them and the other side
-  # can re-collide. Solved in CLOSED FORM rather than by nudging one side then the other,
-  # because that iteration only approaches the answer and an assertion on the result then
-  # has to be given a tolerance to pass, which is an assertion that has stopped checking.
-  #
-  # In pads: u = alim[1] - xlim[1], v = xlim[2] - alim[2], span = D + u + v with D the axis
-  # width. The columns need u >= cL*span and v >= cR*span. Neither pad may SHRINK, so the
-  # cases are: nothing to do; only the left binds; only the right binds; both bind. Each has
-  # one solution and the last one exists whenever the two columns together are narrower than
-  # the plot region. When they are not, no xlim can hold them and metafor's own choice is
-  # left alone, which is what the previous one-sided fit did too.
-  w_in <- graphics::par("pin")[1]
-  frac <- function(txt) {
-    if (is.null(txt) || !length(txt)) return(0)
-    f <- (max(graphics::strwidth(txt, units = "inches", cex = z$cex)) + FOREST_GUTTER_IN) / w_in
-    if (is.finite(f) && f > 0) f else 0
-  }
-  cL <- frac(attr(xr, "run_slab"))
-  cR <- frac(attr(xr, "run_annot"))
-  if ((cL > 0 || cR > 0) && cL + cR < 1) {
-    D  <- z$alim[2] - z$alim[1]
-    u0 <- z$alim[1] - z$xlim[1]
-    v0 <- z$xlim[2] - z$alim[2]
-    ok <- function(u, v) { sp <- D + u + v
-                           u >= cL * sp - 1e-12 && v >= cR * sp - 1e-12 && u >= u0 && v >= v0 }
-    uv <- if (ok(u0, v0)) c(u0, v0) else {
-      l <- c(cL * (D + v0) / (1 - cL), v0)                    # only the left binds
-      r <- c(u0, cR * (D + u0) / (1 - cR))                    # only the right binds
-      both <- c(cL, cR) * D / (1 - cL - cR)                   # both bind
-      if (ok(l[1], l[2])) l else if (ok(r[1], r[2])) r else both
+  # The finest ladder whose tick labels clear each other by FOREST_TICK_GAP_IN on THIS
+  # device, after both gutters are fitted (0.1.11). The finest ladder crowds at phone width
+  # (found by tests/test_forest_log_axis.R section e), so a coarser one is tried in turn;
+  # the coarsest is kept if none clears, and the test then says so.
+  opts <- .log_tick_options(xr[1], xr[2])
+  for (ticks in opts) {
+    at <- log(ticks); lx <- range(at)
+    z <- metafor::forest(x = lx, ci.lb = rep(lx[1], 2), ci.ub = rep(lx[2], 2),
+                         atransf = exp, refline = 0, alim = lx, at = at,
+                         at.lab = .tick_labels(ticks), slab = c("a", "b"),
+                         header = c("Cohort", FOREST_HR_HEADER))
+    # One gutter for the whole run, fitted here because this is the one place the shared ruler
+    # is computed. Measured at metafor's own resolved cex on a device of the export's width; the
+    # app's on-screen forests are WIDER, where the same xlim leaves more room rather than less,
+    # so a gutter fitted here is sufficient everywhere it is used. Panels all resolve cex = 1
+    # under forest_height_in()'s sizing, and tests/test_forest_slab_fit.R asserts that rather
+    # than leaving it as an assumption -- if a panel ever shrinks its text, this measurement
+    # would be taken at the wrong size and the test says so instead of the figure colliding.
+    #
+    # THE SAME PROBLEM EXISTS ON THE RIGHT, and went unnoticed until Figure S2 was printed.
+    # metafor right-aligns the annotation column at xlim[2] and derives no clearance from
+    # alim[2], so a cohort whose interval reaches the end of the SHARED range has its whisker
+    # cap drawn hard against its own "2.06 [1.57, 2.72]". On a single-axis forest this cannot
+    # happen, because metafor sets alim from that panel's own data with room to spare; it is
+    # specific to a range one panel did not define. Seen at GSE43107_LGG in Figure S2 panel A.
+    #
+    # The two gutters are COUPLED: widening either bound stretches the same plot region over
+    # more user units, so a column measured in inches covers more of them and the other side
+    # can re-collide. Solved in CLOSED FORM rather than by nudging one side then the other,
+    # because that iteration only approaches the answer and an assertion on the result then
+    # has to be given a tolerance to pass, which is an assertion that has stopped checking.
+    #
+    # In pads: u = alim[1] - xlim[1], v = xlim[2] - alim[2], span = D + u + v with D the axis
+    # width. The columns need u >= cL*span and v >= cR*span. Neither pad may SHRINK, so the
+    # cases are: nothing to do; only the left binds; only the right binds; both bind. Each has
+    # one solution and the last one exists whenever the two columns together are narrower than
+    # the plot region. When they are not, no xlim can hold them and metafor's own choice is
+    # left alone, which is what the previous one-sided fit did too.
+    w_in <- graphics::par("pin")[1]
+    frac <- function(txt) {
+      if (is.null(txt) || !length(txt)) return(0)
+      f <- (max(graphics::strwidth(txt, units = "inches", cex = z$cex)) + FOREST_GUTTER_IN) / w_in
+      if (is.finite(f) && f > 0) f else 0
     }
-    if (!ok(uv[1], uv[2]))
-      stop(sprintf(paste(".forest_axis(): no xlim holds both gutters (alim [%g, %g], label",
-                         "column %.3f and annotation column %.3f of the plot region)"),
-                   z$alim[1], z$alim[2], cL, cR))
-    z$xlim <- c(z$alim[1] - uv[1], z$alim[2] + uv[2])
+    cL <- frac(attr(xr, "run_slab"))
+    cR <- frac(attr(xr, "run_annot"))
+    if ((cL > 0 || cR > 0) && cL + cR < 1) {
+      D  <- z$alim[2] - z$alim[1]
+      u0 <- z$alim[1] - z$xlim[1]
+      v0 <- z$xlim[2] - z$alim[2]
+      ok <- function(u, v) { sp <- D + u + v
+                             u >= cL * sp - 1e-12 && v >= cR * sp - 1e-12 && u >= u0 && v >= v0 }
+      uv <- if (ok(u0, v0)) c(u0, v0) else {
+        l <- c(cL * (D + v0) / (1 - cL), v0)                    # only the left binds
+        r <- c(u0, cR * (D + u0) / (1 - cR))                    # only the right binds
+        both <- c(cL, cR) * D / (1 - cL - cR)                   # both bind
+        if (ok(l[1], l[2])) l else if (ok(r[1], r[2])) r else both
+      }
+      if (!ok(uv[1], uv[2]))
+        stop(sprintf(paste(".forest_axis(): no xlim holds both gutters (alim [%g, %g], label",
+                           "column %.3f and annotation column %.3f of the plot region)"),
+                     z$alim[1], z$alim[2], cL, cR))
+      z$xlim <- c(z$alim[1] - uv[1], z$alim[2] + uv[2])
+    }
+    D_in <- w_in * diff(z$alim) / diff(z$xlim)
+    pos  <- (at - z$alim[1]) / diff(z$alim) * D_in
+    lw   <- graphics::strwidth(.tick_labels(ticks), units = "inches", cex = z$cex.axis)
+    gap  <- diff(pos) - (lw[-1] + lw[-length(lw)]) / 2
+    if (min(gap) >= FOREST_TICK_GAP_IN) break
   }
   graphics::par(op)
-  if (!(z$alim[1] <= xr[1] && z$alim[2] >= xr[2]))
-    stop(sprintf(paste("metafor chose an axis [%g, %g] that does not contain the shared",
-                       "range [%g, %g]; intervals would be drawn as arrows on the panel",
-                       "that defined the range"), z$alim[1], z$alim[2], xr[1], xr[2]))
-  list(alim = z$alim, xlim = z$xlim, at = z$at)
+  # alim is in log units and must hold the range it was built for, as metafor drew it.
+  if (!(z$alim[1] <= log(xr[1]) + 1e-12 && z$alim[2] >= log(xr[2]) - 1e-12))
+    stop(sprintf(paste("the axis [%g, %g] does not contain the range [%g, %g]; intervals",
+                       "would be drawn as arrows on the panel that defined the range"),
+                 exp(z$alim[1]), exp(z$alim[2]), xr[1], xr[2]))
+  list(alim = z$alim, xlim = z$xlim, at = at, at.lab = .tick_labels(ticks))
 }
 
 # Fail loud on a range that cannot be an HR axis. Every one of these would otherwise reach
@@ -1044,14 +1154,20 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
   on.exit({ graphics::par(op); if (opened) grDevices::dev.off() })
   xlab <- .forest_xlab(res)
 
-  # EMPTY when xrange is NULL, so metafor is called exactly as it was before step 55 and
-  # the single-panel figure is unchanged -- see the note on forest_plot()'s signature.
-  # The columns are fitted at the width of the device drawn on (step 286). Text is a fixed
-  # size in inches, so gutters fitted at the export width left the pooled label running into
-  # the diamond on a phone. Every panel of one Multiple query run is drawn at the same width,
-  # so they still share one ruler.
-  ax   <- if (is.null(xrange)) list() else
-            .forest_axis(.check_xrange(xrange), din = graphics::par("din"))
+  # The axis is ALWAYS ours since 0.1.11 (log HR, readable ticks; see .forest_axis()). With no
+  # xrange it is fitted to this forest's own .forest_bounds(): every cohort, the diamond unless
+  # it is extreme, and HR = 1. Both paths fit on the device drawn on, with both label columns
+  # (step 286 did this for the Multiple query): text is a fixed size in inches, so gutters and
+  # tick labels fitted at the export width crowd on a narrower screen. .slab_gutter() below is
+  # kept as the check on the label column. Every panel of one Multiple query run is drawn at
+  # the same width, so they still share one ruler.
+  ax   <- if (is.null(xrange))
+            .forest_axis(structure(.forest_bounds(res),
+                                   run_slab = as.expression(c(as.list(.panel_slab(res)),
+                                                              .panel_mlines(res))),
+                                   run_annot = .panel_annot(res)),
+                         din = graphics::par("din"))
+          else .forest_axis(.check_xrange(xrange), din = graphics::par("din"))
   head <- c(FOREST_SLAB_HEADER, FOREST_HR_HEADER)
   # Single-axis forests get their label gutter fitted; shared-axis panels must not, or the
   # one ruler becomes several. See the note on .slab_gutter().
@@ -1061,26 +1177,12 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
     m <- .forest_rma(yi, vi)
     mlines <- .pooled_mlab(sum(n), sum(ev), m$I2, length(est))
     mlab   <- .stack_left(mlines)
-    # THE AXIS HOLDS THE DIAMOND (step 286). metafor fits its axis to the cohorts' intervals
-    # and cuts the pooled polygon at it without a mark. Since 0.1.8 the pooled interval is
-    # Hartung-Knapp, honestly wide at two to four cohorts, and on the author's AATBC breast
-    # DFS forest (0.62 to 1.47 on an axis of 0.7 to 1.2) it came out as a flat bar. When the
-    # diamond reaches past every cohort, the axis is fitted to everything drawn, by the
-    # function the Multiple query's shared axis already uses; otherwise metafor's own axis
-    # stands and the figure is as before.
-    if (is.null(xrange)) {
-      q  <- stats::qnorm(0.975)
-      cb <- exp(range(c(yi - q * sqrt(vi), yi + q * sqrt(vi))))
-      b  <- .forest_bounds(res)
-      # .forest_axis() fits the annotation column; the label column is left to .slab_gutter()
-      # below, which measures on the device actually drawn on (.forest_axis() measures at the
-      # export width, and at phone width the pooled label then ran into the diamond).
-      if (b[1] < cb[1] || b[2] > cb[2])
-        ax <- .forest_axis(structure(b, run_annot = .panel_annot(res)))
-    }
+    # THE AXIS HOLDS THE DIAMOND (step 286) unless the diamond is EXTREME (0.1.11): then the
+    # axis holds the cohorts, metafor cuts the polygon at the axis end, and an arrowhead below
+    # marks each cut end. The full interval is always printed in the right column.
     # The pooled label is drawn by .draw_pooled_mlab(), not by metafor: see there. It sits in
     # the label column, so the gutter is fitted to it as well as to the cohort labels.
-    base <- list(m, transf = exp, refline = 1, slab = slab, xlab = xlab, header = head,
+    base <- list(m, atransf = exp, refline = 0, slab = slab, xlab = xlab, header = head,
                  mlab = "", ylim = .pooled_ylim(mlines, length(est)))
     z <- do.call(metafor::forest, c(base, .gutter(base, ax, c(slab, mlab))))
     z$mlab <- mlab; z$mlab_lines <- mlines
@@ -1102,14 +1204,35 @@ forest_plot <- function(res, file = NULL, xrange = NULL, main = TRUE) {
                    plab, pann))
     z$pooled_p <- plab; z$pooled_p_y <- .pooled_p_y(z)
     graphics::text(z$textpos[2], z$pooled_p_y, plab, pos = 2, cex = z$cex)
+    # 0.1.11: a solid arrowhead at each end of the pooled row the diamond passes, pointing out
+    # of the axis into the gutter. FOREST_ARROW_IN is shorter than FOREST_GUTTER_IN, the room
+    # both label columns keep from the axis, so the arrowhead cannot reach a label.
+    z$clipped <- c(lower = m$ci.lb < z$alim[1], upper = m$ci.ub > z$alim[2])
+    if (any(z$clipped)) {
+      usr <- graphics::par("usr"); pin <- graphics::par("pin")
+      w <- FOREST_ARROW_IN * diff(usr[1:2]) / pin[1]
+      h <- FOREST_ARROW_IN * 0.6 * diff(usr[3:4]) / pin[2]
+      if (z$clipped[["lower"]])
+        graphics::polygon(c(z$alim[1], z$alim[1] - w, z$alim[1]), c(-1 + h, -1, -1 - h),
+                          col = "black", border = NA)
+      if (z$clipped[["upper"]])
+        graphics::polygon(c(z$alim[2], z$alim[2] + w, z$alim[2]), c(-1 + h, -1, -1 - h),
+                          col = "black", border = NA)
+    }
     graphics::par(fr)
   } else {
     # Single cohort: no pooling — plot the lone estimate with its normal CI.
-    base <- list(x = yi, vi = vi, transf = exp, refline = 1,
+    base <- list(x = yi, vi = vi, atransf = exp, refline = 0,
                  slab = slab, xlab = xlab, header = head)
     z <- do.call(metafor::forest, c(base, .gutter(base, ax, slab)))
     z$mlab <- NULL; z$mlab_lines <- NULL; z$pooled_p <- NULL; z$pooled_p_y <- NULL
+    z$clipped <- c(lower = FALSE, upper = FALSE)
   }
+  # The item 9 label (FOREST_NULL_LABEL), in the header row (metafor draws the header at
+  # ylim[2] - 1 with its default top = 3), centred on HR = 1, in metafor's frame.
+  fr <- graphics::par(mar = .metafor_mar())
+  graphics::text(0, z$ylim[2] - 1, FOREST_NULL_LABEL, cex = z$cex * 0.85, col = "grey35")
+  graphics::par(fr)
   # Carried out for the same reason mlab is: the per-cohort labels' fit is a property of the
   # drawn geometry, and a test that rebuilds them measures a string the figure need not hold.
   z$slab <- slab
@@ -1775,6 +1898,9 @@ mq_panel_notes <- function(e) {
   out <- c(info = sprintf(
     "Pooled over k=%d of %d %s cohorts in this panel. Nothing is pooled with any other panel.",
     k, e$n_sel, e$endpoint))
+  # The pooled HR in one plain line (0.1.11, item 2), right after the pooling sentence, so the
+  # screen and the CSV's panel_note say the same thing. NULL (nothing added) below two cohorts.
+  out <- c(out, info = pooled_reading(r))
   # The horizon is read off the RESULT, never off the selector: what is stated is what was
   # fit. Both branches are explicit -- an undeclared horizon has to SAY "full follow-up",
   # because silence would read as a truncated fit.

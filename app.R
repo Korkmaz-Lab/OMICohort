@@ -265,6 +265,42 @@ SQ_SECTION_HEAD <- c(forest = "Forest plot", tn = "Tumour vs matched adjacent no
                      km = "Kaplan-Meier curves", hr = "Results table")
 .sq_head <- function(which) tags$h4(SQ_SECTION_HEAD[[which]], class = "sq-section-head")
 
+# The regulon drawer (0.1.11, item 4): regulon_of() and regulon_sentences() in R/registry.R
+# hold the data and every sentence; this only lays them out. A <details> element, closed by
+# default: it holds no plotOutput, so the hidden-output problem of step 50 does not apply.
+.regulon_table <- function(d, first) {
+  if (!nrow(d)) return(NULL)
+  tags$table(class = "regulon-table",
+    tags$thead(tags$tr(tags$th(first), tags$th("Mode", class = "num"), tags$th("Weight", class = "num"))),
+    tags$tbody(lapply(seq_len(nrow(d)), function(i)
+      tags$tr(tags$td(d[[1]][i]), tags$td(sprintf("%.2f", d$tfmode[i]), class = "num"),
+              tags$td(sprintf("%.2f", d$likelihood[i]), class = "num")))))
+}
+# `download` is the drawer's CSV button, made by the caller's renderUI behind its tab's run
+# counter, as tests/test_export_bar.R requires of every export button.
+REGULON_DL_LABEL <- "Download all targets (CSV)"
+regulon_drawer_ui <- function(rg, download) {
+  s <- regulon_sentences(rg)
+  tags$details(class = "regulon-drawer",
+    tags$summary(s$title),
+    if (!is.null(s$integrated)) tags$p(class = "note note-body", s$integrated),
+    lapply(names(rg$networks), function(d) {
+      net <- rg$networks[[d]]; ss <- s$networks[[d]]
+      div(class = "regulon-net",
+          tags$p(tags$b(ss$summary)),
+          div(class = "regulon-cols",
+              div(tags$h5("Strongest inferred activated targets"),
+                  .regulon_table(net$top_act[, c("target", "tfmode", "likelihood")], "Target")),
+              div(tags$h5("Strongest inferred repressed targets"),
+                  .regulon_table(net$top_rep[, c("target", "tfmode", "likelihood")], "Target"))),
+          tags$p(class = "note note-body", ss$regulators),
+          .regulon_table(net$regulators[, c("tf", "tfmode", "likelihood")], "TF"))
+    }),
+    lapply(s$absent, function(a) tags$p(class = "note note-muted", a)),
+    tags$p(class = "note note-muted", s$note),
+    download)
+}
+
 ENDPOINT_SELECTIZE <- list(render = I(
   "{item: function(item, escape) { return '<div>' + escape(item.value) + '</div>'; }}"))
 endpoint_select <- function(id, eps, selected)
@@ -452,6 +488,18 @@ PAGE_CSS <- "
    with a rule under it so each figure's block visibly starts where the last one ends. */
 .sq-section-head { margin: 18px 0 6px 0; padding-bottom: 3px; font-size: 15px;
                    font-weight: 600; color: #333; border-bottom: 1px solid #e5e5e5; }
+
+/* The regulon drawer (0.1.11): closed by default, under the results. */
+.regulon-drawer { margin: 18px 0 8px 0; border-top: 1px solid #e5e5e5; padding-top: 6px; }
+.regulon-drawer > summary { cursor: pointer; font-size: 15px; font-weight: 600; color: #333; }
+.regulon-net { margin: 10px 0 14px 0; }
+.regulon-net > p.note { margin-top: 10px; }
+.regulon-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.regulon-cols h5 { margin: 6px 0 4px 0; font-size: 13px; font-weight: 600; color: #444; }
+.regulon-table { border-collapse: collapse; font-size: 13px; }
+.regulon-table th, .regulon-table td { padding: 2px 14px 2px 0; text-align: left; }
+.regulon-table th { font-weight: 600; color: #555; border-bottom: 1px solid #e5e5e5; }
+.regulon-table td.num, .regulon-table th.num { text-align: right; }
 
 .narrow-page { max-width: 1400px; margin: 0 auto; padding-left: 5%; padding-right: 5%; }
 
@@ -1052,7 +1100,10 @@ ui <- navbarPage(
     # along time, so the width is the useful axis; the plot height still comes from
     # km_size_in() (synced to the PDF export), only width grows.
     fluidRow(column(12, uiOutput("sq_help_km"), uiOutput("km_tabs"),
-                    uiOutput("sq_help_hr"), DTOutput("surv_table")))
+                    uiOutput("sq_help_hr"), DTOutput("surv_table"),
+                    # The regulon drawer (0.1.11), only when the queried gene is a TF in the
+                    # tissue's network(s), for a VIPER or an mRNA query alike.
+                    uiOutput("sq_regulon")))
    )
   ),
 
@@ -1532,6 +1583,22 @@ server <- function(input, output, session) {
                ct(), input$feature)
   })
 
+  # The regulon drawer (0.1.11) for the query that was RUN (with_query()), never the live
+  # selectors, so the drawer, its CSV and the forest above always describe one query.
+  sq_regulon <- reactive({
+    r <- tryCatch(res(), error = function(e) NULL)
+    q <- if (is.null(r)) NULL else attr(r, "query")
+    if (is.null(q)) NULL else regulon_of(q$feature_id, q$cancer_type)
+  })
+  output$sq_regulon <- renderUI({
+    if (input$run == 0) return(NULL)
+    rg <- sq_regulon()
+    if (is.null(rg)) NULL else regulon_drawer_ui(rg, downloadButton("sq_regulon_csv", REGULON_DL_LABEL))
+  })
+  output$sq_regulon_csv <- downloadHandler(
+    filename = function() regulon_csv_name(sq_regulon()),
+    content  = function(file) utils::write.csv(regulon_csv(sq_regulon()), file, row.names = FALSE))
+
   # --- tumor vs normal-adjacent (context, not a survival result) ---
   #
   # Captured on the SAME run as res(), off input$run rather than live inputs, so the panel
@@ -1725,9 +1792,13 @@ server <- function(input, output, session) {
   output$pooled_note <- renderUI({
     r <- tryCatch(res(), error = function(e) NULL)
     req(r, r$pooled)
-    tags$p(class = "note note-body",
-      sprintf("Pooled over k=%d of %d selected cohorts (%s, %s).",
-              r$pooled$k, length(input$cohorts), ct(), r$endpoint))
+    # The pooled HR in one plain line (0.1.11, item 2): pooled_reading() in R/plots.R, NULL
+    # below two cohorts, so a lone estimate gets no reading.
+    tagList(
+      tags$p(class = "note note-body",
+        sprintf("Pooled over k=%d of %d selected cohorts (%s, %s).",
+                r$pooled$k, length(input$cohorts), ct(), r$endpoint)),
+      if (!is.null(rd <- pooled_reading(r))) tags$p(class = "note note-body", rd))
   })
 
   # Where this query's TF sits in the genome-wide scan already on disk -- the multiplicity
@@ -2224,6 +2295,7 @@ server <- function(input, output, session) {
                 plotOutput(paste0("mq_forest_", ct),
                            height = if (ok) sprintf("%dpx", mq_forest_h_px(k)) else "auto")),
             uiOutput(paste0("mq_note_", ct)),
+            uiOutput(paste0("mq_regulon_", ct)),   # the regulon drawer (0.1.11)
             # The KM curves and the per-cohort table now live behind a per-tissue
             # toggle, CLOSED by default. Measured at the five panels of the day, forest +
             # KM tabset + DataTable came to 41,100px of page; the forests are a small
@@ -2272,6 +2344,22 @@ server <- function(input, output, session) {
       # That split is deliberate: the ZIP export pastes the same sentences into the CSV's
       # panel_note column, and a panel note written twice would be free to drift from the
       # one the reader saw on screen. Severity travels as the vector's names.
+      # The regulon drawer (0.1.11), from this panel's own tissue network(s) and the feature
+      # the run used. NULL when the panel did not run or the feature is not a TF there.
+      mq_reg <- reactive({
+        e <- mq_res()[[ct_]]
+        if (is.null(e) || !identical(e$status, "ok")) NULL else regulon_of(e$feature_id, ct_)
+      })
+      output[[paste0("mq_regulon_", ct_)]] <- renderUI({
+        if (input$mq_run == 0) return(NULL)
+        rg <- mq_reg()
+        if (is.null(rg)) NULL else
+          regulon_drawer_ui(rg, downloadButton(paste0("mq_regulon_csv_", ct_), REGULON_DL_LABEL))
+      })
+      output[[paste0("mq_regulon_csv_", ct_)]] <- downloadHandler(
+        filename = function() regulon_csv_name(mq_reg()),
+        content  = function(file) utils::write.csv(regulon_csv(mq_reg()), file, row.names = FALSE))
+
       output[[paste0("mq_note_", ct_)]] <- renderUI({
         e <- mq_res()[[ct_]]
         # mq_panel_notes() names each sentence by severity; this maps that name to the

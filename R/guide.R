@@ -166,12 +166,18 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
                 function(f) readLines(f, warn = FALSE))
   reg <- if (length(tfl)) range(lengths(tfl)) else c(NA_integer_, NA_integer_)
 
+  # Tissues whose VIPER scores come from more than one network, for the regulon drawer's text
+  # (step 324). A list, so the figure checks do not take its counts for page figures: the
+  # page prints them as words.
+  multi_net <- as.list(Filter(function(n) n > 1L, vapply(cts, function(ct)
+    length(regulon_networks_for(ct, registry = registry)), integer(1))))
+
   list(n_cohorts = nrow(registry), n_types = length(cts), tissues = ti,
        # The cohorts the seven primary scans are actually built from. `patients` and `events`
        # below are summed over exactly these, so the page can now say 10,429 patients across
        # 47 cohorts instead of implying they came from all 53.
        n_cohorts_pooled = sum(vapply(ti, function(t) t$n_cohorts_ep, integer(1))),
-       n_networks = length(nets), n_tf = tf,
+       n_networks = length(nets), n_tf = tf, multi_net = multi_net,
        n_reg_min = reg[[1]], n_reg_max = reg[[2]],
        patients = sum(vapply(ti, function(t) if (is.na(t$n)) 0L else as.integer(t$n), integer(1))),
        events = sum(vapply(ti, function(t) if (is.na(t$events)) 0L else as.integer(t$events), integer(1))))
@@ -183,6 +189,28 @@ guide_facts <- function(scans_by_ct, features_by_ct = NULL, registry = COHORTS) 
 .g_int <- function(x) if (is.na(x)) "n/a" else formatC(as.integer(x), format = "d", big.mark = ",")
 .g_esc <- function(x) .html_escape(x)
 .g_join <- function(x) paste(.g_esc(x), collapse = ", ")
+# A small count as a word ("three times", "the ten strongest"), for the rules the 0.1.11 text
+# states (step 324). Stops outside one to ten rather than printing a digit in a sentence
+# written for a word.
+.g_word <- function(n) {
+  w <- c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+  if (length(n) != 1L || !is.numeric(n) || is.na(n) || n != round(n) || n < 1 || n > length(w))
+    stop(".g_word(): no word for ", paste(n, collapse = ", "))
+  w[[n]]
+}
+# "a, b or c"
+.g_or <- function(x) if (length(x) < 2L) x else paste(paste(x[-length(x)], collapse = ", "), "or", x[length(x)])
+# The drawer's sentence about tissues scored by more than one network (step 324). It says
+# "both regulons", so it refuses any tissue with other than two: that sentence would be false.
+.guide_multi_net <- function(m) {
+  if (!length(m)) return("In the Multiple query, each tissue&rsquo;s panel has its own.")
+  if (any(unlist(m) != 2L))
+    stop("the Guide's drawer text says 'both regulons', but these tissues have other than two ",
+         "networks: ", paste(names(m)[unlist(m) != 2L], collapse = ", "))
+  paste0(.g_or(sprintf("%s scores combine %s networks", .g_esc(tools::toTitleCase(names(m))),
+                       vapply(m, .g_word, ""))),
+         ", so both regulons are shown; in the Multiple query, each tissue&rsquo;s panel has its own.")
+}
 
 # A link to ANOTHER TAB of this app (step 249). The Guide and About each send the reader to
 # the other, and until this step only in words: the Guide has no visible nav item (the brand
@@ -431,6 +459,17 @@ guide_html <- function(f) {
 'cohort&rsquo;s HR and its area reflects how much that cohort contributes; the horizontal line is ',
 'the CI; the <b>diamond at the bottom is the pooled estimate</b>.</p>',
 '<ul class="guide-list">',
+# THE 0.1.11 FOREST (step 324), approved by the author 2026-11-17. The label, the ratio, the
+# threshold and the rate names are read from R/plots.R, never typed: tests/test_guide_derived.R.
+'<li><b>The axis is logarithmic.</b> An HR of 0.5 and an HR of 2, equal effects in opposite ',
+'directions, sit at the same distance from 1. The vertical line at 1 is labelled &ldquo;',
+.g_esc(FOREST_NULL_LABEL), '&rdquo;; a box to its left means a higher score goes with a lower ',
+'hazard, and to its right, a higher one.</li>',
+'<li><b>An arrowhead means the diamond is cut.</b> With two or three cohorts the pooled interval ',
+'can be far wider than any cohort&rsquo;s. When it is more than ', .g_word(FOREST_EXTREME_RATIO),
+' times the span the cohorts&rsquo; intervals cover together, the axis is fitted to the cohorts, ',
+'the diamond is cut where the axis ends, and an arrowhead marks the cut. The full interval is ',
+'always printed in the right column.</li>',
 '<li><b>Pooling is random-effects Restricted Maximum Likelihood (REML)</b>, not fixed-effect. A fixed-effect pool assumes every ',
 'cohort is estimating the identical number and treats disagreement between them as noise. Cohorts ',
 'here differ in platform, treatment era and case mix, so they are not estimating the identical ',
@@ -440,6 +479,10 @@ guide_html <- function(f) {
 'be careful with, the average may not describe any actual cohort.</li>',
 '<li><b>A row that does not clear significance is not a failed replication.</b> Small cohorts have ',
 'wide intervals. The question is whether the effects point the same way.</li>',
+'<li><b>Under the forest, one line reads the pooled HR in words.</b> When the pooled p is below ',
+format(READING_ALPHA), ' it says by how much ',
+.g_or(sprintf('the %s (%s)', .g_esc(RATE_NAME), names(RATE_NAME))),
+' is higher or lower per SD of the score; otherwise it says there is no clear association.</li>',
 '</ul>',
 
 '<h4 class="guide-h3">The Kaplan-Meier plot</h4>',
@@ -516,6 +559,21 @@ format(POOL_MIN_K), ' cohorts were pooled, too few to estimate how much they tru
 'DepMap line, the gene&rsquo;s notes and its own per-cohort table. This table does not sort: the ',
 'order is the list you typed, and ranking a hand-picked list by p is the reading its note warns ',
 'against.</p>',
+
+# THE REGULON DRAWER (step 324, release 0.1.11), approved by the author 2026-11-17. The top
+# count is regulon_of()'s own default and the two-network sentence comes from guide_facts();
+# tests/test_guide_derived.R also holds Mode and Weight to app.R's .regulon_table() headers.
+'<h4 class="guide-h3">The regulon drawer</h4>',
+'<p>When the queried gene is a transcription factor in the tissue&rsquo;s network, a closed ',
+'section under the results table, &ldquo;Regulon of&rdquo; followed by the TF, shows its ',
+'regulon: how many targets ARACNe inferred, and how many of those are activated or repressed; ',
+'the ', .g_word(as.integer(formals(regulon_of)$top)), ' strongest of each; the TFs that have it ',
+'among their own targets; and a download of every target.</p>',
+'<p>Strength is <b>Mode</b> times <b>Weight</b>. <b>Mode</b>, between -1 and 1, is the sign and ',
+'strength of the target&rsquo;s co-expression with the TF; <b>Weight</b> is how confidently ',
+'ARACNe infers the link. ', .guide_multi_net(f$multi_net), ' ARACNe infers these targets from ',
+'co-expression across tumours; activated or repressed is the direction of that co-expression, ',
+'not evidence of binding.</p>',
 
 # THE OTHER OUTPUTS OF A SINGLE QUERY (step 250). Until this step the Guide explained the HR,
 # the forest and the KM and nothing else the page shows: the tumour vs normal panel was three
