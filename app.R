@@ -279,10 +279,18 @@ SQ_SECTION_HEAD <- c(forest = "Forest plot", tn = "Tumour vs matched adjacent no
 # `download` is the drawer's CSV button, made by the caller's renderUI behind its tab's run
 # counter, as tests/test_export_bar.R requires of every export button.
 REGULON_DL_LABEL <- "Download all targets (CSV)"
-regulon_drawer_ui <- function(rg, download) {
+# head = TRUE (the Single query, step 326): the title is a section heading like the page's
+# others, and the drawer under it opens like their "How to read this". The Multiple query's
+# panels keep the title as the drawer's own summary, inside the card.
+REGULON_SHOW_LABEL <- "Show its targets and regulators"
+regulon_drawer_ui <- function(rg, download, head = FALSE) {
   s <- regulon_sentences(rg)
-  tags$details(class = "regulon-drawer",
-    tags$summary(s$title),
+  d <- .regulon_details(rg, s, download, head)
+  if (head) tagList(tags$h4(s$title, class = "sq-section-head"), d) else d
+}
+.regulon_details <- function(rg, s, download, head) {
+  tags$details(class = if (head) "regulon-drawer regulon-under-head" else "regulon-drawer",
+    tags$summary(if (head) REGULON_SHOW_LABEL else s$title),
     if (!is.null(s$integrated)) tags$p(class = "note note-body", s$integrated),
     lapply(names(rg$networks), function(d) {
       net <- rg$networks[[d]]; ss <- s$networks[[d]]
@@ -492,6 +500,13 @@ PAGE_CSS <- "
 /* The regulon drawer (0.1.11): closed by default, under the results. */
 .regulon-drawer { margin: 18px 0 8px 0; border-top: 1px solid #e5e5e5; padding-top: 6px; }
 .regulon-drawer > summary { cursor: pointer; font-size: 15px; font-weight: 600; color: #333; }
+/* Under its own section heading (Single query, step 326): opens like .fig-help. */
+.regulon-under-head { margin: 2px 0 12px 0; border-top: none; padding-top: 0; }
+.regulon-under-head > summary { font-size: 0.88em; font-weight: normal; color: #666;
+                                display: inline-block; }
+.regulon-under-head > summary::before { content: '\\25B8\\00a0'; }
+.regulon-under-head[open] > summary::before { content: '\\25BE\\00a0'; }
+.regulon-under-head > summary:hover { color: #222; }
 .regulon-net { margin: 10px 0 14px 0; }
 .regulon-net > p.note { margin-top: 10px; }
 .regulon-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
@@ -501,7 +516,8 @@ PAGE_CSS <- "
 .regulon-table th { font-weight: 600; color: #555; border-bottom: 1px solid #e5e5e5; }
 .regulon-table td.num, .regulon-table th.num { text-align: right; }
 
-.narrow-page { max-width: 1400px; margin: 0 auto; padding-left: 5%; padding-right: 5%; }
+.narrow-page { max-width: 1400px; margin: 0 auto; padding-left: 5%; padding-right: 5%;
+               padding-bottom: 64px; }
 
 /* The four tabs' control panels must be the SAME WIDTH. They were not: measured 2026-08-25,
    Single query's .well came out 1111.5px and the other three 1095px. Cause is structural,
@@ -1096,14 +1112,15 @@ ui <- navbarPage(
     # The forest's own help and notes are placed INSIDE forest_slot, under the forest, since
     # step 245; see the comment on .sq_head() in the server.
     uiOutput("forest_slot"),
+    # The regulon drawer (0.1.11), only when the queried gene is a TF in the tissue's
+    # network(s), for a VIPER or an mRNA query alike. Its own section straight under the forest
+    # row since step 326: as the page's last element it sat on the window's bottom edge.
+    uiOutput("sq_regulon"),
     # KM curves and the per-cohort table, full page width. A KM curve is read left-to-right
     # along time, so the width is the useful axis; the plot height still comes from
     # km_size_in() (synced to the PDF export), only width grows.
     fluidRow(column(12, uiOutput("sq_help_km"), uiOutput("km_tabs"),
-                    uiOutput("sq_help_hr"), DTOutput("surv_table"),
-                    # The regulon drawer (0.1.11), only when the queried gene is a TF in the
-                    # tissue's network(s), for a VIPER or an mRNA query alike.
-                    uiOutput("sq_regulon")))
+                    uiOutput("sq_help_hr"), DTOutput("surv_table")))
    )
   ),
 
@@ -1579,7 +1596,8 @@ server <- function(input, output, session) {
                      input$feature, input$kind)
     # with_query() records what was run, so the downloads name their files from the result
     # and never from the live selectors (step 253; see with_query() in R/plots.R).
-    with_query(with_feature(r, sprintf("%s (%s)", input$feature, KIND_LABEL[[input$kind]])),
+    with_query(with_feature(r, sprintf("%s (%s)", input$feature, KIND_LABEL[[input$kind]]),
+                            subject = reading_subject(input$feature, input$kind)),
                ct(), input$feature)
   })
 
@@ -1593,7 +1611,7 @@ server <- function(input, output, session) {
   output$sq_regulon <- renderUI({
     if (input$run == 0) return(NULL)
     rg <- sq_regulon()
-    if (is.null(rg)) NULL else regulon_drawer_ui(rg, downloadButton("sq_regulon_csv", REGULON_DL_LABEL))
+    if (is.null(rg)) NULL else regulon_drawer_ui(rg, downloadButton("sq_regulon_csv", REGULON_DL_LABEL), head = TRUE)
   })
   output$sq_regulon_csv <- downloadHandler(
     filename = function() regulon_csv_name(sq_regulon()),
@@ -1793,11 +1811,11 @@ server <- function(input, output, session) {
     r <- tryCatch(res(), error = function(e) NULL)
     req(r, r$pooled)
     # The pooled HR in one plain line (0.1.11, item 2): pooled_reading() in R/plots.R, NULL
-    # below two cohorts, so a lone estimate gets no reading.
+    # below two cohorts, so a lone estimate gets no reading. The "Pooled over" line only when
+    # a selected cohort did not enter the pool (step 326): sq_pooled_line(), NULL otherwise.
     tagList(
-      tags$p(class = "note note-body",
-        sprintf("Pooled over k=%d of %d selected cohorts (%s, %s).",
-                r$pooled$k, length(input$cohorts), ct(), r$endpoint)),
+      if (!is.null(pl <- sq_pooled_line(r$pooled$k, length(input$cohorts), ct(), r$endpoint)))
+        tags$p(class = "note note-body", pl),
       if (!is.null(rd <- pooled_reading(r))) tags$p(class = "note note-body", rd))
   })
 
@@ -1846,15 +1864,13 @@ server <- function(input, output, session) {
     if (is.null(r)) return(NULL)
     f <- format_scan_rank(r)
     if (is.null(f)) return(NULL)
-    # format_scan_rank()'s tone, mapped to the shared note tones rather than to hex here.
-    # The Multiple query panels paint the same three from the same source, which is the
-    # point of naming them in PAGE_CSS: a rank that clears FDR cannot end up green on one
-    # tab and orange on the other.
-    tone <- switch(f$tone, hit = "note-good", miss = "note-warn", na = "note-muted")
+    # Plain body text whatever format_scan_rank()'s tone (step 326, the author's review of
+    # the 0.1.11 image): the sentence already says whether it clears FDR. The Multiple query
+    # panels do the same through .rank_note(), so the two tabs still agree.
     # The marker appears only when format_scan_rank() supplied an explanation, which is the
     # `ok` state alone -- the five "no rank, because..." messages already say why, and
     # deciding that HERE would mean app.R re-deriving which state it is looking at.
-    tags$p(class = paste("note note-tuck", tone),
+    tags$p(class = "note note-tuck note-body",
            if (is.null(f$info)) f$text else HTML(info_note_html(f$text, f$info)))
   })
 
@@ -2185,7 +2201,8 @@ server <- function(input, output, session) {
           with_feature(with_absent(get_survival(score, endpoint = ep, cohorts = co,
                                                 adjust_strata = strat, max_followup = tau),
                                    setdiff(co, .cohorts_carrying(feat, co, kind)), feat, kind),
-                       sprintf("%s (%s)", feat, KIND_LABEL[[kind]]))
+                       sprintf("%s (%s)", feat, KIND_LABEL[[kind]]),
+                       subject = reading_subject(feat, kind))
         }, error = function(err) err)
         if (inherits(r, "error")) {
           e$status <- "error"; e$msg <- conditionMessage(r); return(e)
@@ -2535,7 +2552,7 @@ server <- function(input, output, session) {
               with_feature(with_absent(get_survival(score, endpoint = ep, cohorts = co,
                                                     adjust_strata = strat, max_followup = tau),
                                        setdiff(co, .cohorts_carrying(g, co, kind)), g, kind),
-                           e$feature)
+                           e$feature, subject = reading_subject(g, kind))
           }, error = function(err) err)
           if (inherits(r, "error")) {
             e$status <- "error"; e$msg <- conditionMessage(r); return(e)

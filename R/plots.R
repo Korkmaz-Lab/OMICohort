@@ -248,6 +248,12 @@ fmt_p <- function(v) {
 # strwrap() is NOT usable here and that is the whole reason this exists: it breaks on
 # WHITESPACE, and the names that overflow are `///`-joined probe sets with none
 # ("C2///CFB", "FAM90A9P///FAM90A10P///..."). Handed one, strwrap() returns it whole.
+#
+# BETWEEN WORDS WHEN IT CAN (step 326). The author found "matched a" / "djacent normal" on the
+# tumour vs normal title: a character-level cut is right inside a `///` name and wrong inside a
+# word. So the cut moves back to the last whitespace in the part that fits, when there is one
+# with something before it, and the whitespace stays at the END of its chunk: callers index
+# into the string by the chunks' lengths (.title_lines() does), and trim only what they draw.
 .chunk_to_width <- function(s, w, cex, font) {
   out <- character(0)
   while (nchar(s) > 0L) {
@@ -260,6 +266,13 @@ fmt_p <- function(v) {
       mid <- (lo + hi + 1L) %/% 2L
       if (graphics::strwidth(substr(s, 1L, mid), units = "inches", cex = cex, font = font) <= w)
         lo <- mid else hi <- mid - 1L
+    }
+    if (!grepl("^\\s", substr(s, lo + 1L, lo + 1L))) {       # the cut would split a run
+      sp <- gregexpr("\\s", substr(s, 1L, lo))[[1]]
+      sp <- sp[sp > 0L]
+      if (length(sp) && grepl("\\S", substr(s, 1L, max(sp)))) lo <- max(sp)
+    } else {                                                # the cut is at a space: keep the run
+      while (lo < n && grepl("^\\s", substr(s, lo + 1L, lo + 1L))) lo <- lo + 1L
     }
     out <- c(out, substr(s, 1L, lo)); s <- substr(s, lo + 1L, n)
   }
@@ -299,7 +312,8 @@ fmt_p <- function(v) {
   full <- paste0(feat, tail)
   if (graphics::strwidth(full, units = "inches", cex = cex, font = font) <= w) return(full)
   ch <- .chunk_to_width(full, w, cex, font)
-  if (length(ch) <= max_lines) return(ch)
+  # A chunk keeps the space it was cut at (see .chunk_to_width()); the drawn line does not.
+  if (length(ch) <= max_lines) return(trimws(ch))
   head_lines <- ch[seq_len(max_lines - 1L)]
   shown <- sum(nchar(head_lines))
   cut <- nchar(full) - shown
@@ -309,10 +323,10 @@ fmt_p <- function(v) {
   repeat {
     mark <- sprintf("[+%d chars]%s", cut, tail)
     room <- w - graphics::strwidth(mark, units = "inches", cex = cex, font = font)
-    if (room <= 0) return(c(head_lines, mark))
+    if (room <= 0) return(trimws(c(head_lines, mark)))
     keep <- .chunk_to_width(substr(full, shown + 1L, nchar(full)), room, cex, font)[1L]
     new_cut <- nchar(full) - shown - nchar(keep)
-    if (new_cut == cut) return(c(head_lines, paste0(keep, mark)))
+    if (new_cut == cut) return(trimws(c(head_lines, paste0(keep, mark))))
     cut <- new_cut
   }
 }
@@ -555,9 +569,20 @@ pooled_reading <- function(res) {
   rate <- RATE_NAME[[res$endpoint]]
   if (p >= READING_ALPHA) return(sprintf("No clear association with the %s (%s).", rate, .pooled_p_label(p)))
   pct <- round(100 * abs(HR - 1))
-  sprintf("Higher %s is associated with a %s %s %s per SD.", attr(res, "feature") %||% "score",
+  subj <- attr(res, "reading_subject")
+  if (is.null(subj)) subj <- attr(res, "feature") %||% "score"
+  sprintf("Higher %s is associated with a %s %s %s per SD.", subj,
           if (pct < 1) "less than 1%" else sprintf("%d%%", pct),
           if (HR > 1) "higher" else "lower", rate)
+}
+
+# The Single query's "Pooled over" line (step 326, the author's review): shown only when a
+# selected cohort did not enter the pool, because when all of them did the forest already shows
+# every one. Names the tissue by its label, never by its registry key.
+sq_pooled_line <- function(k, n_sel, cancer_type, endpoint) {
+  if (k >= n_sel) return(NULL)
+  sprintf("Pooled over %d of %d selected cohorts (%s, %s).", k, n_sel,
+          cancer_label_of(cancer_type), endpoint)
 }
 
 # Where that line goes: one text line under the pooled HR [95% CI] (y = -1, metafor's fixed
@@ -1488,7 +1513,23 @@ KIND_LABEL <- c(viper = "VIPER TF activity", expr = "mRNA",
 # Tag a survresult with the feature name so plot titles/axes read nicely:
 #   res <- with_feature(get_survival(get_feature("ESR1", kind="viper")),
 #                       sprintf("ESR1 (%s)", KIND_LABEL[["viper"]]))
-with_feature <- function(res, feature) { attr(res, "feature") <- feature; res }
+# `subject` (step 326) is the short form the pooled reading line opens on, "YBX1 activity",
+# built by reading_subject(); without it pooled_reading() falls back to the full label.
+with_feature <- function(res, feature, subject = NULL) {
+  attr(res, "feature") <- feature
+  if (!is.null(subject)) attr(res, "reading_subject") <- subject
+  res
+}
+
+# The score word of the reading line (step 326; the author: "Higher FOXM1 activity", the
+# scope's own example). One word per KIND_LABEL entry; tests/test_pooled_reading.R holds the
+# two sets equal, and an unknown kind stops rather than reading "YBX1 NA".
+READING_KIND <- c(viper = "activity", expr = "expression", immune = "score", cna = "copy number")
+reading_subject <- function(feature, kind) {
+  if (length(kind) != 1L || !(kind %in% names(READING_KIND)))
+    stop("reading_subject(): no score word for kind '", paste(kind, collapse = ", "), "'")
+  sprintf("%s %s", feature, READING_KIND[[kind]])
+}
 
 # The selected cohorts whose matrix does not carry the queried feature (step 244). They never
 # reach get_survival() -- get_feature() returns nothing for them -- so the result alone cannot
@@ -1876,7 +1917,9 @@ MSG_SINGLE_COHORT <-
   if (is.null(e$rank) || e$rank$status %in% suppress) return(character(0))
   f <- format_scan_rank(e$rank)
   if (is.null(f)) return(character(0))
-  setNames(f$text, switch(f$tone, hit = "hit", miss = "warn", "info"))
+  # Plain body text whatever the tone (step 326, the author's review): the sentence already
+  # says whether it clears FDR. The Single query's output$scan_rank does the same.
+  setNames(f$text, "info")
 }
 
 # Everything one panel has to disclose, as sentences. Returned as a character vector NAMED

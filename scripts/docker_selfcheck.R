@@ -148,7 +148,7 @@ if (!length(stray)) note("    no .DS_Store, no archive or backup copy, data/raw 
 # precomputed into viper_*.h5, so the image never needs that dependency chain.
 note("[8] packages")
 for (p in c("shiny", "DT", "shinythemes", "rhdf5", "RSQLite", "DBI",
-            "data.table", "metafor", "survival")) {
+            "data.table", "metafor", "survival", "ragg")) {
   v <- tryCatch(as.character(utils::packageVersion(p)), error = function(e) NA_character_)
   if (is.na(v)) fail("R package %s is not installed", p) else note("    %-12s %s", p, v)
 }
@@ -170,6 +170,11 @@ if (!probe(function(f) grDevices::png(f, width = 400, height = 300)))
 if (!probe(function(f) grDevices::cairo_pdf(f, width = 6, height = 4)))
   note("    note: cairo_pdf unavailable; PDF downloads fall back to pdf() (fonts by name, not embedded)")
 note("    cairo capability: %s", capabilities("cairo"))
+# ragg's PNG device is the one Shiny's renderPlot uses when ragg is installed (step 326). It is
+# required above; this opens it, because an installed package whose device cannot open would
+# send Shiny back to Cairo's png() with nothing said.
+if (!probe(function(f) ragg::agg_png(f, width = 400, height = 300, res = 72)))
+  fail("ragg::agg_png() will not open -- Shiny would draw every plot with Cairo's png() instead")
 
 # -------------------------------------------------------------------------------------------
 if (!ok) {

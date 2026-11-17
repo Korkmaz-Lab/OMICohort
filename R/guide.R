@@ -565,7 +565,7 @@ format(POOL_MIN_K), ' cohorts were pooled, too few to estimate how much they tru
 # tests/test_guide_derived.R also holds Mode and Weight to app.R's .regulon_table() headers.
 '<h4 class="guide-h3">The regulon drawer</h4>',
 '<p>When the queried gene is a transcription factor in the tissue&rsquo;s network, a closed ',
-'section under the results table, &ldquo;Regulon of&rdquo; followed by the TF, shows its ',
+'section under the forest, &ldquo;Regulon of&rdquo; followed by the TF, shows its ',
 'regulon: how many targets ARACNe inferred, and how many of those are activated or repressed; ',
 'the ', .g_word(as.integer(formals(regulon_of)$top)), ' strongest of each; the TFs that have it ',
 'among their own targets; and a download of every target.</p>',

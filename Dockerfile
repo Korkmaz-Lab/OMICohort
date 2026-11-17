@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev \
         libjpeg-dev \
         libtiff5-dev \
+        libharfbuzz-dev \
+        libfribidi-dev \
         libxml2-dev \
         libssl-dev \
         libcurl4-openssl-dev \
@@ -65,7 +67,10 @@ RUN . /etc/os-release && \
     curl -fsS -o /dev/null "$REPO/src/contrib/PACKAGES.gz" && \
     echo "options(repos = c(CRAN = '$REPO'))" >> "$R_HOME/etc/Rprofile.site"
 
-# The nine packages the running app loads. `viper` is deliberately absent: VIPER activity
+# The ten packages the running app loads. ragg (step 326) is the PNG device Shiny's
+# renderPlot picks when it is installed; without it Shiny falls back to Cairo's png(), whose
+# hinted, sub-pixel text looked cut at the top on screen. harfbuzz and fribidi above are what
+# its text shaping (textshaping) builds against. `viper` is deliberately absent: VIPER activity
 # is precomputed into viper_*.h5 by the pipeline, so the served app never needs it, and
 # leaving it out keeps the whole Bioconductor single-cell dependency chain out of the image.
 RUN install2.r --error --skipinstalled --ncpus -1 \
@@ -76,7 +81,8 @@ RUN install2.r --error --skipinstalled --ncpus -1 \
         DBI \
         data.table \
         metafor \
-        survival
+        survival \
+        ragg
 
 # rhdf5 is the one Bioconductor dependency. Rhdf5lib vendors HDF5 itself, so no system
 # libhdf5 is required and the version is fixed by the Bioconductor release, not by apt.

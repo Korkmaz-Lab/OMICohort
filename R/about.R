@@ -526,7 +526,7 @@ ABOUT_METHODS <- list(
 # page describes the instance a visitor is looking at rather than the machine it was written
 # on. That is also why nothing is typed here but the names.
 ABOUT_RUNTIME_PKGS <- c("shiny", "DT", "shinythemes", "rhdf5", "RSQLite", "DBI",
-                        "data.table", "metafor", "survival")
+                        "data.table", "metafor", "survival", "ragg")
 
 
 
