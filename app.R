@@ -265,6 +265,10 @@ SQ_SECTION_HEAD <- c(forest = "Forest plot", tn = "Tumour vs matched adjacent no
                      km = "Kaplan-Meier curves", hr = "Results table")
 .sq_head <- function(which) tags$h4(SQ_SECTION_HEAD[[which]], class = "sq-section-head")
 
+# The pooled reading line's class by reading_tone() (R/plots.R), one map for both query tabs
+# (step 327): an association is set apart, "No clear association" is plain body text.
+READING_CLASS <- c(assoc = "note-key", info = "note-body")
+
 # The regulon drawer (0.1.11, item 4): regulon_of() and regulon_sentences() in R/registry.R
 # hold the data and every sentence; this only lays them out. A <details> element, closed by
 # default: it holds no plotOutput, so the hidden-output problem of step 50 does not apply.
@@ -286,11 +290,14 @@ REGULON_SHOW_LABEL <- "Show its targets and regulators"
 regulon_drawer_ui <- function(rg, download, head = FALSE) {
   s <- regulon_sentences(rg)
   d <- .regulon_details(rg, s, download, head)
-  if (head) tagList(tags$h4(s$title, class = "sq-section-head"), d) else d
+  # "How to read this" (step 327): under the heading like every other section's on the Single
+  # query; inside the drawer, under its title, on the Multiple query.
+  if (head) tagList(tags$h4(s$title, class = "sq-section-head"), HTML(figure_help_html("regulon")), d) else d
 }
 .regulon_details <- function(rg, s, download, head) {
   tags$details(class = if (head) "regulon-drawer regulon-under-head" else "regulon-drawer",
     tags$summary(if (head) REGULON_SHOW_LABEL else s$title),
+    if (!head) HTML(figure_help_html("regulon")),
     if (!is.null(s$integrated)) tags$p(class = "note note-body", s$integrated),
     lapply(names(rg$networks), function(d) {
       net <- rg$networks[[d]]; ss <- s$networks[[d]]
@@ -509,7 +516,9 @@ PAGE_CSS <- "
 .regulon-under-head > summary:hover { color: #222; }
 .regulon-net { margin: 10px 0 14px 0; }
 .regulon-net > p.note { margin-top: 10px; }
-.regulon-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+/* Each column as wide as its table, a fixed gap, wrapping when the page is narrow (step 327:
+   1fr halves put the repressed table half a page from the activated one). */
+.regulon-cols { display: flex; flex-wrap: wrap; column-gap: 64px; row-gap: 8px; }
 .regulon-cols h5 { margin: 6px 0 4px 0; font-size: 13px; font-weight: 600; color: #444; }
 .regulon-table { border-collapse: collapse; font-size: 13px; }
 .regulon-table th, .regulon-table td { padding: 2px 14px 2px 0; text-align: left; }
@@ -764,6 +773,9 @@ a.btn.btn-export:hover, a.btn.btn-export:focus, a.btn.btn-export:active {
 .note-tuck  { margin-top: -6px; }
 .note-gap   { margin-top: 6px; }
 .note-stack { margin-bottom: 2px; }
+/* The pooled reading line when it reports an association (step 327, READING_CLASS). */
+.note-key   { color: #222; font-weight: 600; border-left: 3px solid __BRAND_PURPLE__;
+              padding-left: 8px; }
 
 /* The stratify control, tucked under the Endpoint select (2026-08-15). Bootstrap gives the
    select's .form-group a 15px bottom margin and .checkbox a 10px top margin, so stacking the
@@ -1703,7 +1715,7 @@ server <- function(input, output, session) {
     # The heading waits for a Run, like every figure's help: a title over an empty box is
     # a label for nothing.
     fhead  <- if (isTRUE(input$run > 0)) .sq_head("forest")
-    fnotes <- tagList(uiOutput("sq_help_forest"),
+    fnotes <- tagList(uiOutput("sq_reading"), uiOutput("sq_help_forest"),
                       uiOutput("tau_note"),
                       uiOutput("pooled_note"),
                       uiOutput("scan_rank"),
@@ -1810,13 +1822,21 @@ server <- function(input, output, session) {
   output$pooled_note <- renderUI({
     r <- tryCatch(res(), error = function(e) NULL)
     req(r, r$pooled)
-    # The pooled HR in one plain line (0.1.11, item 2): pooled_reading() in R/plots.R, NULL
-    # below two cohorts, so a lone estimate gets no reading. The "Pooled over" line only when
-    # a selected cohort did not enter the pool (step 326): sq_pooled_line(), NULL otherwise.
-    tagList(
-      if (!is.null(pl <- sq_pooled_line(r$pooled$k, length(input$cohorts), ct(), r$endpoint)))
-        tags$p(class = "note note-body", pl),
-      if (!is.null(rd <- pooled_reading(r))) tags$p(class = "note note-body", rd))
+    # The "Pooled over" line only when a selected cohort did not enter the pool (step 326):
+    # sq_pooled_line(), NULL otherwise. The reading line is output$sq_reading (step 327).
+    if (!is.null(pl <- sq_pooled_line(r$pooled$k, length(input$cohorts), ct(), r$endpoint)))
+      tags$p(class = "note note-body", pl)
+  })
+
+  # The pooled HR in one plain line (0.1.11, item 2): pooled_reading() in R/plots.R, NULL below
+  # two cohorts, so a lone estimate gets no reading. Since step 327 the first line under the
+  # forest, and set apart (note-key) when it reports an association.
+  output$sq_reading <- renderUI({
+    r <- tryCatch(res(), error = function(e) NULL)
+    req(r, r$pooled)
+    rd <- pooled_reading(r)
+    if (is.null(rd)) return(NULL)
+    tags$p(class = paste("note", READING_CLASS[[reading_tone(r)]]), rd)
   })
 
   # Where this query's TF sits in the genome-wide scan already on disk -- the multiplicity
@@ -2380,13 +2400,14 @@ server <- function(input, output, session) {
       output[[paste0("mq_note_", ct_)]] <- renderUI({
         e <- mq_res()[[ct_]]
         # mq_panel_notes() names each sentence by severity; this maps that name to the
-        # shared note classes in PAGE_CSS. The SAME three the Single query tab's scan_rank
+        # shared note classes in PAGE_CSS ("assoc", the reading line when it reports an
+        # association, through READING_CLASS like the Single query's, step 327). The SAME three the Single query tab's scan_rank
         # badge resolves to (note-good / note-warn / neutral), which is the point of naming
         # them once: a rank that clears FDR cannot read green on one tab and orange on the
         # other. An unrecognised severity falls through to the neutral tone rather than
         # erroring -- a sentence with no colour is still readable, a blank panel is not.
         cls <- function(sev) paste("note note-stack",
-                                   switch(sev, warn = "note-warn", hit = "note-good",
+                                   switch(sev, warn = "note-warn", hit = "note-good", assoc = READING_CLASS[["assoc"]],
                                           "note-body"))
 
         if (identical(e$status, "error"))
@@ -2607,7 +2628,7 @@ server <- function(input, output, session) {
     n <- if (length(R$entries)) mgene_header_notes(R$entries, R$resolved)
          else c(warn = "No gene was analysed.", mgene_resolved_notes(R$resolved))
     cls <- function(sev) paste("note note-stack",
-                               switch(sev, warn = "note-warn", hit = "note-good",
+                               switch(sev, warn = "note-warn", hit = "note-good", assoc = READING_CLASS[["assoc"]],
                                       "note-body"))
     do.call(tagList, lapply(seq_along(n), function(i)
       tags$p(class = cls(names(n)[i]), n[[i]])))

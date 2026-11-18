@@ -576,6 +576,15 @@ pooled_reading <- function(res) {
           if (HR > 1) "higher" else "lower", rate)
 }
 
+# The reading line's tone (step 327, the author's review): "assoc" when it reports an
+# association, so both query tabs can set it apart (app.R's READING_CLASS); "info" when it says
+# there is no clear association; NULL when there is no line. Decided by pooled_reading()'s own
+# test, so the tone and the sentence cannot disagree.
+reading_tone <- function(res) {
+  if (is.null(pooled_reading(res))) return(NULL)
+  if (res$pooled$p < READING_ALPHA) "assoc" else "info"
+}
+
 # The Single query's "Pooled over" line (step 326, the author's review): shown only when a
 # selected cohort did not enter the pool, because when all of them did the forest already shows
 # every one. Names the tissue by its label, never by its registry key.
@@ -1938,12 +1947,14 @@ mq_panel_notes <- function(e) {
   # NOT `%||%`: that operator tests nzchar(), a string test, and errors on a length-0
   # numeric. An explicit is.null test is the thing meant here.
   k <- if (!is.null(r$pooled) && !is.null(r$pooled$k)) r$pooled$k else .n_estimable(r)
-  out <- c(info = sprintf(
+  # The pooled HR in one plain line (0.1.11, item 2), FIRST since step 327 (the author: it is
+  # the take-home, so it opens the notes under the forest), named by reading_tone() so an
+  # association is set apart. The screen and the CSV's panel_note say the same thing in the
+  # same order. Nothing added below two cohorts.
+  rd <- pooled_reading(r)
+  out <- c(if (!is.null(rd)) setNames(rd, reading_tone(r)), info = sprintf(
     "Pooled over k=%d of %d %s cohorts in this panel. Nothing is pooled with any other panel.",
     k, e$n_sel, e$endpoint))
-  # The pooled HR in one plain line (0.1.11, item 2), right after the pooling sentence, so the
-  # screen and the CSV's panel_note say the same thing. NULL (nothing added) below two cohorts.
-  out <- c(out, info = pooled_reading(r))
   # The horizon is read off the RESULT, never off the selector: what is stated is what was
   # fit. Both branches are explicit -- an undeclared horizon has to SAY "full follow-up",
   # because silence would read as a truncated fit.
@@ -2683,7 +2694,25 @@ FIGURE_HELP <- list(
     paste("p tests whether the HR differs from 1, which means no association; below 0.05 is the",
           "usual threshold. If the 95% CI includes 1, the data cannot rule out no association."),
     paste("A \u201c!\u201d in the PH column means the risk ratio changed during follow-up, so the",
-          "HR is an average over time rather than one constant value."))
+          "HR is an average over time rather than one constant value.")),
+  # The regulon drawer (step 327, approved by the author as proposed). Mode and Weight as
+  # viper 1.44.0's aracne2regulon() makes them, measured on the eight files at step 327 and
+  # held by tests/test_regulon_drawer.R section k; "10" is regulon_of()'s top, held there too.
+  regulon = c(
+    paste("ARACNe infers a TF's targets from how their expression varies together across this",
+          "tissue's tumours."),
+    paste("Mode is the direction, from -1 to 1: a signed confidence in the rank correlation of TF",
+          "and target. Near 1 they rise together (activated), near -1 one falls as the other rises",
+          "(repressed), near 0 the direction is unclear."),
+    paste("Weight is the mutual information ARACNe measured between them: how much one's level",
+          "tells about the other's, whatever the direction. Higher is a stronger link; it is not a",
+          "0 to 1 score."),
+    paste("Strongest means the largest |Mode| \u00d7 Weight. The 10 strongest in each direction are",
+          "shown, and Download all targets (CSV) holds every target with both numbers and that score."),
+    paste("The regulators table shows the same two numbers from the other side: each row is a TF",
+          "whose own regulon includes this one."),
+    paste("VIPER scores the TF from all its targets, weighted by both numbers; the tables show only",
+          "the ones that count most."))
 )
 
 # One point, held to the hover's cap. The same two limits and the same counter as

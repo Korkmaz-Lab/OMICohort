@@ -452,9 +452,10 @@ regulon_sentences <- function(rg, top = 10L) {
   labs <- unname(NETWORK_LABEL[dirs])
   nets <- lapply(rg$networks, function(net) {
     n <- net$n_regulators
-    reg <- if (n == 0) sprintf("No TF in the %s network has %s among its inferred targets.", net$label, tf)
-           else if (n == 1) sprintf("1 TF in the %s network has %s among its inferred targets.", net$label, tf)
-           else sprintf("%d TFs in the %s network have %s among their inferred targets%s.", n, net$label, tf,
+    # "other" (step 327, the author's wording): `tf` itself is never counted.
+    reg <- if (n == 0) sprintf("No other TF in the %s network has %s among its inferred targets.", net$label, tf)
+           else if (n == 1) sprintf("1 other TF in the %s network has %s among its inferred targets.", net$label, tf)
+           else sprintf("%d other TFs in the %s network have %s among their inferred targets%s.", n, net$label, tf,
                         if (n > top) sprintf("; the %d strongest are shown", top) else "")
     list(summary = regulon_summary_line(net, tf), regulators = reg)
   })
