@@ -3087,6 +3087,20 @@ TN_YLAB <- "SD (tumour reference)"
 # Figure-title size, deliberately under forest_plot()'s 1.1. See the draw site for why.
 TN_TITLE_CEX <- 0.9
 
+# The drawn title's two lines (step 329, the author's review): the feature and its score type on
+# line 1, the comparison on line 2, always, both centred by tn_plot(). Line 1 is cut aloud
+# ("[+n chars]", .title_lines()) when a name is wider than the panels; line 2 is a constant, and
+# a panel too narrow for it stops rather than clip it. tests/test_drawn_titles.R checks every
+# panel width tn_size_in() can give.
+TN_TITLE_TAIL <- "tumour vs matched adjacent normal"
+tn_title_lines <- function(feature, kind, w) {
+  head <- .title_lines(sprintf("%s (%s)", feature, KIND_LABEL[[kind]]), "", w = w,
+                       cex = TN_TITLE_CEX, max_lines = 1L)
+  if (graphics::strwidth(TN_TITLE_TAIL, units = "inches", cex = TN_TITLE_CEX, font = 2L) > w)
+    stop(sprintf("tn_title_lines(): '%s' does not fit %.2fin", TN_TITLE_TAIL, w))
+  c(head, TN_TITLE_TAIL)
+}
+
 # The fold change that sits UNDER the SD, for kind = "expr" only (see .tn_fc()).
 #
 # The axis stays per-SD; this is the companion number, because an SD alone is not
@@ -3209,12 +3223,11 @@ tn_plot <- function(tn, file = NULL) {
   # puts the two arms one above the other, where a reader has nothing but the drawing.
   # Indexing with [[ ]] rather than a lookup with a fallback: an unrecognised kind stops
   # here rather than drawing a title that quietly names no score type at all.
-  tl <- .title_lines(sprintf("%s (%s)", tn$feature, KIND_LABEL[[tn$kind]]),
-                     "  |  tumour vs matched adjacent normal",
-                     w = w_outer, cex = TN_TITLE_CEX)
+  # Two lines since step 329 (tn_title_lines()), centred over the panels.
+  tl <- tn_title_lines(tn$feature, tn$kind, w = w_outer)
   for (i in seq_along(tl))
     graphics::mtext(tl[i], 3, outer = TRUE, line = 1.9 - 1.05 * (i - 1L),
-                    cex = TN_TITLE_CEX, font = 2L, adj = 0)
+                    cex = TN_TITLE_CEX, font = 2L, adj = 0.5)
   invisible(TRUE)
 }
 

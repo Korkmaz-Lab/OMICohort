@@ -283,18 +283,17 @@ READING_CLASS <- c(assoc = "note-key", info = "note-body")
 # `download` is the drawer's CSV button, made by the caller's renderUI behind its tab's run
 # counter, as tests/test_export_bar.R requires of every export button.
 REGULON_DL_LABEL <- "Download all targets (CSV)"
-# head = TRUE (the Single query, step 326): the title is a section heading like the page's
-# others, and the drawer under it opens like their "How to read this". The Multiple query's
-# panels keep the title as the drawer's own summary, inside the card.
+# One layout on both query tabs (step 326 on the Single query, step 329 on the Multiple query):
+# the title is a section heading like the page's others, and the drawer under it opens like
+# their "How to read this".
 REGULON_SHOW_LABEL <- "Show its targets and regulators"
-regulon_drawer_ui <- function(rg, download, head = FALSE) {
+regulon_drawer_ui <- function(rg, download) {
   s <- regulon_sentences(rg)
-  d <- .regulon_details(rg, s, download, head)
-  if (head) tagList(tags$h4(s$title, class = "sq-section-head"), d) else d
+  tagList(tags$h4(s$title, class = "sq-section-head"), .regulon_details(rg, s, download))
 }
-.regulon_details <- function(rg, s, download, head) {
-  tags$details(class = if (head) "regulon-drawer regulon-under-head" else "regulon-drawer",
-    tags$summary(if (head) REGULON_SHOW_LABEL else s$title),
+.regulon_details <- function(rg, s, download) {
+  tags$details(class = "regulon-drawer regulon-under-head",
+    tags$summary(REGULON_SHOW_LABEL),
     # "How to read this" (FIGURE_HELP$regulon, step 327): inside the drawer, first under its
     # summary, on both tabs (step 328, the author: the section starts with the drawer).
     HTML(figure_help_html("regulon")),
@@ -1623,7 +1622,7 @@ server <- function(input, output, session) {
   output$sq_regulon <- renderUI({
     if (input$run == 0) return(NULL)
     rg <- sq_regulon()
-    if (is.null(rg)) NULL else regulon_drawer_ui(rg, downloadButton("sq_regulon_csv", REGULON_DL_LABEL), head = TRUE)
+    if (is.null(rg)) NULL else regulon_drawer_ui(rg, downloadButton("sq_regulon_csv", REGULON_DL_LABEL))
   })
   output$sq_regulon_csv <- downloadHandler(
     filename = function() regulon_csv_name(sq_regulon()),
