@@ -290,14 +290,14 @@ REGULON_SHOW_LABEL <- "Show its targets and regulators"
 regulon_drawer_ui <- function(rg, download, head = FALSE) {
   s <- regulon_sentences(rg)
   d <- .regulon_details(rg, s, download, head)
-  # "How to read this" (step 327): under the heading like every other section's on the Single
-  # query; inside the drawer, under its title, on the Multiple query.
-  if (head) tagList(tags$h4(s$title, class = "sq-section-head"), HTML(figure_help_html("regulon")), d) else d
+  if (head) tagList(tags$h4(s$title, class = "sq-section-head"), d) else d
 }
 .regulon_details <- function(rg, s, download, head) {
   tags$details(class = if (head) "regulon-drawer regulon-under-head" else "regulon-drawer",
     tags$summary(if (head) REGULON_SHOW_LABEL else s$title),
-    if (!head) HTML(figure_help_html("regulon")),
+    # "How to read this" (FIGURE_HELP$regulon, step 327): inside the drawer, first under its
+    # summary, on both tabs (step 328, the author: the section starts with the drawer).
+    HTML(figure_help_html("regulon")),
     if (!is.null(s$integrated)) tags$p(class = "note note-body", s$integrated),
     lapply(names(rg$networks), function(d) {
       net <- rg$networks[[d]]; ss <- s$networks[[d]]
